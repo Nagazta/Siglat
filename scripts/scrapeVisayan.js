@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { getFirestore, collection, addDoc, updateDoc, getDocs, query, where } from "firebase/firestore";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file
@@ -65,124 +65,7 @@ function parseTime(dateStr, timeStr) {
   }
 }
 
-/**
- * Parser that splits raw text into detailed advisory reports.
- */
-function parseAdvisoryContent(rawText, url) {
-  const reports = [];
-  
-  // Split the text into segments by date lines (e.g. "July 12, 2026 (Sunday)")
-  const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-  const lines = rawText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-  
-  let currentDateStr = "";
-  let currentSegment = null;
-  
-  const segments = [];
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lineLower = line.toLowerCase();
-    
-    // Check if line represents a date (starts with a month and contains a year)
-    const isDateLine = months.some(m => lineLower.startsWith(m)) && lineLower.includes("202");
-    
-    if (isDateLine) {
-      currentDateStr = line;
-      continue;
-    }
-    
-    if (lineLower.startsWith("time:")) {
-      if (currentSegment) {
-        segments.push({ date: currentDateStr, ...currentSegment });
-      }
-      currentSegment = {
-        time: lines[i+1] || "",
-        purpose: "",
-        areas: ""
-      };
-      i++; // skip next line as it was parsed as time value
-      continue;
-    }
-    
-    if (lineLower.startsWith("purpose:") && currentSegment) {
-      currentSegment.purpose = lines[i+1] || "";
-      i++;
-      continue;
-    }
-    
-    if (lineLower.startsWith("areas affected:") && currentSegment) {
-      currentSegment.areas = lines[i+1] || "";
-      i++;
-      continue;
-    }
-  }
-  if (currentSegment) {
-    segments.push({ date: currentDateStr, ...currentSegment });
-  }
 
-  // Map segments to standard database report format
-  for (const seg of segments) {
-    const areasLower = seg.areas.toLowerCase();
-    const purposeLower = seg.purpose.toLowerCase();
-    
-    // Resolve municipality
-    let municipality = "Cebu City"; // fallback
-    for (const city of Object.keys(CEBU_COORDINATES)) {
-      if (areasLower.includes(city) || purposeLower.includes(city)) {
-        municipality = city.replace(/(^|\s)\S/g, (l) => l.toUpperCase());
-        break;
-      }
-    }
-    
-    // Resolve Barangay
-    let barangay = "Unknown Barangay";
-    const brgyMatch = seg.purpose.match(/(?:brgy|barangay)\.?\s+([A-Za-z\s]+?)(?=\s+by|\s+to|\s+facilitating|$)/i) ||
-                      seg.areas.match(/(?:portion of)\s+([A-Za-z\s]+?)(?:,|$)/i);
-    if (brgyMatch && brgyMatch[1]) {
-      barangay = brgyMatch[1].trim();
-    } else {
-      // Split by commas and pick first part
-      const parts = seg.areas.replace(/portion of/i, "").split(",");
-      if (parts[0] && parts[0].trim().length > 2) {
-        barangay = parts[0].trim();
-      }
-    }
-    
-    // Format coordinates
-    const coords = CEBU_COORDINATES[municipality.toLowerCase()] || CEBU_COORDINATES["cebu city"];
-    const dates = parseTime(seg.date, seg.time);
-
-    // Parse status
-    let status = "scheduled"; // Visayan Electric advisories are scheduled interruptions
-
-    // Reason
-    let reason = "Line maintenance";
-    if (purposeLower.includes("transformer")) {
-      reason = "Transformer maintenance";
-    } else if (purposeLower.includes("upgrade") || purposeLower.includes("capacity")) {
-      reason = "System upgrade";
-    } else if (purposeLower.includes("repositioning")) {
-      reason = "Equipment failure";
-    }
-
-    reports.push({
-      province: "Cebu",
-      municipality,
-      barangay,
-      latitude: coords.lat,
-      longitude: coords.lng,
-      status,
-      startTime: dates.startIso,
-      estimatedEnd: dates.endIso,
-      reason,
-      notes: `VECO Advisory:\nTime: ${seg.time}\nPurpose: ${seg.purpose}\nDetails: ${seg.areas}`,
-      sourceUrl: url || null,
-    });
-  }
-  
-  return reports;
-}
 
 /**
  * Scrape outage updates from Visayan Electric's website.
@@ -230,19 +113,130 @@ async function scrapeVisayanElectric() {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
       await page.waitForTimeout(3000);
 
-      const pageText = await page.evaluate(() => {
-        const bodyEl = document.querySelector("[data-testid='post-content'], article, [class*='post-content']");
-        return bodyEl ? bodyEl.innerText : "";
+      const parsedAdvisories = await page.evaluate(() => {
+        const postContainer = document.querySelector("[data-testid='post-content'], article, [class*='post-content']");
+        if (!postContainer) return [];
+        
+        const children = Array.from(postContainer.querySelectorAll("*"));
+        const entries = [];
+        let currentDate = "";
+        
+        const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+        
+        children.forEach(el => {
+          const text = el.innerText.trim();
+          const tagName = el.tagName;
+          
+          const isDate = (tagName.startsWith("H") || tagName === "P" || tagName === "SPAN") && 
+                         months.some(m => text.toLowerCase().startsWith(m)) && 
+                         text.includes("202") &&
+                         text.length < 50;
+                         
+          if (isDate) {
+            currentDate = text;
+          }
+          
+          if (tagName === "TABLE") {
+            const rows = Array.from(el.querySelectorAll("tr"));
+            const entry = {
+              date: currentDate,
+              time: "",
+              purpose: "",
+              areas: "",
+              mapImageUrl: ""
+            };
+            
+            rows.forEach(row => {
+              const cells = Array.from(row.querySelectorAll("td"));
+              if (cells.length >= 2) {
+                const label = cells[0].innerText.trim().toLowerCase();
+                const valueCell = cells[1];
+                const valueText = valueCell.innerText.trim();
+                
+                if (label.includes("time")) {
+                  entry.time = valueText;
+                } else if (label.includes("purpose")) {
+                  entry.purpose = valueText;
+                } else if (label.includes("areas")) {
+                  entry.areas = valueText;
+                } else if (label.includes("map")) {
+                  const img = valueCell.querySelector("img");
+                  if (img) {
+                    entry.mapImageUrl = img.src || img.getAttribute("data-src") || img.getAttribute("src") || "";
+                  }
+                }
+              }
+            });
+            
+            if (entry.time || entry.purpose || entry.areas) {
+              entries.push(entry);
+            }
+          }
+        });
+        
+        return entries;
       });
 
-      if (pageText.trim().length > 0) {
-        console.log("📄 Content retrieved. Parsing advisories...");
-        const parsedReports = parseAdvisoryContent(pageText, url);
-        console.log(`✅ Extracted ${parsedReports.length} reports from post.`);
-        allReports.push(...parsedReports);
-      } else {
-        console.warn("⚠️ Warning: Empty content retrieved from page.");
+      console.log(`📄 Found ${parsedAdvisories.length} structured tables. Parsing into database reports...`);
+      
+      const parsedReports = [];
+      for (const seg of parsedAdvisories) {
+        const areasLower = seg.areas.toLowerCase();
+        const purposeLower = seg.purpose.toLowerCase();
+        
+        // Resolve municipality
+        let municipality = "Cebu City"; // fallback
+        for (const city of Object.keys(CEBU_COORDINATES)) {
+          if (areasLower.includes(city) || purposeLower.includes(city)) {
+            municipality = city.replace(/(^|\s)\S/g, (l) => l.toUpperCase());
+            break;
+          }
+        }
+        
+        // Resolve Barangay
+        let barangay = "Unknown Barangay";
+        const brgyMatch = seg.purpose.match(/(?:brgy|barangay)\.?\s+([A-Za-z\s]+?)(?=\s+by|\s+to|\s+facilitating|$)/i) ||
+                          seg.areas.match(/(?:portion of)\s+([A-Za-z\s]+?)(?:,|$)/i);
+        if (brgyMatch && brgyMatch[1]) {
+          barangay = brgyMatch[1].trim();
+        } else {
+          const parts = seg.areas.replace(/portion of/i, "").split(",");
+          if (parts[0] && parts[0].trim().length > 2) {
+            barangay = parts[0].trim();
+          }
+        }
+        
+        // Format coordinates
+        const coords = CEBU_COORDINATES[municipality.toLowerCase()] || CEBU_COORDINATES["cebu city"];
+        const dates = parseTime(seg.date, seg.time);
+
+        let reason = "Line maintenance";
+        if (purposeLower.includes("transformer")) {
+          reason = "Transformer maintenance";
+        } else if (purposeLower.includes("upgrade") || purposeLower.includes("capacity")) {
+          reason = "System upgrade";
+        } else if (purposeLower.includes("repositioning")) {
+          reason = "Equipment failure";
+        }
+
+        parsedReports.push({
+          province: "Cebu",
+          municipality,
+          barangay,
+          latitude: coords.lat,
+          longitude: coords.lng,
+          status: "scheduled",
+          startTime: dates.startIso,
+          estimatedEnd: dates.endIso,
+          reason,
+          notes: `VECO Advisory:\nTime: ${seg.time}\nPurpose: ${seg.purpose}\nDetails: ${seg.areas}`,
+          sourceUrl: url,
+          mapImageUrl: seg.mapImageUrl || null,
+        });
       }
+
+      console.log(`✅ Extracted ${parsedReports.length} reports from post.`);
+      allReports.push(...parsedReports);
     }
 
     console.log(`\n🔍 Total unique outages extracted: ${allReports.length}`);
@@ -267,7 +261,14 @@ async function scrapeVisayanElectric() {
           });
           console.log(`✅ Saved new Cebu report for ${report.barangay}, ${report.municipality} (ID: ${docRef.id})`);
         } else {
-          console.log(`⏭️ Report for ${report.barangay}, ${report.municipality} already exists. Skipping.`);
+          // Update the existing document to enrich it with mapImageUrl and sourceUrl if they were missing
+          const existingDoc = existingDocs.docs[0];
+          await updateDoc(existingDoc.ref, {
+            mapImageUrl: report.mapImageUrl,
+            sourceUrl: report.sourceUrl,
+            updatedAt: new Date().toISOString(),
+          });
+          console.log(`🔄 Updated existing report for ${report.barangay}, ${report.municipality} with map image & source (ID: ${existingDoc.id})`);
         }
       }
     } else {

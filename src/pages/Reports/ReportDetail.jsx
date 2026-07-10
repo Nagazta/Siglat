@@ -92,7 +92,7 @@ export default function ReportDetail() {
             <Card padding="none" className="overflow-hidden">
               <div style={{ height: "280px" }}>
                 <LeafletMap
-                  center={[report.latitude, report.longitude]}
+                  center={[parseFloat(report.latitude), parseFloat(report.longitude)]}
                   zoom={14}
                   className="w-full h-full"
                   zoomControl={false}
@@ -103,7 +103,7 @@ export default function ReportDetail() {
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
                   <CircleMarker
-                    center={[report.latitude, report.longitude]}
+                    center={[parseFloat(report.latitude), parseFloat(report.longitude)]}
                     radius={12}
                     pathOptions={{
                       color: "#ffffff",
@@ -119,6 +119,23 @@ export default function ReportDetail() {
                 </LeafletMap>
               </div>
             </Card>
+
+            {/* VECO Map Image overlay */}
+            {report.mapImageUrl && (
+              <Card className="flex flex-col gap-3">
+                <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                  <MapPin size={15} className="text-amber-500" />
+                  Official Outage Area Map
+                </h2>
+                <div className="w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex justify-center p-2.5">
+                  <img
+                    src={report.mapImageUrl}
+                    alt="Visayan Electric Outage Map"
+                    className="max-w-full max-h-96 object-contain rounded-lg shadow-sm"
+                  />
+                </div>
+              </Card>
+            )}
 
             {/* Notes */}
             {report.notes && (
