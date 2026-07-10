@@ -154,7 +154,20 @@ export default function ReportDetail() {
                     label: "Last Updated",
                     value: formatDate(report.updatedAt),
                   },
-                ].map(({ label, value }) => (
+                  report.sourceUrl ? {
+                    label: "Source Reference",
+                    value: (
+                      <a
+                        href={report.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline font-semibold"
+                      >
+                        Visayan Electric Advisory ↗
+                      </a>
+                    ),
+                  } : null,
+                ].filter(Boolean).map(({ label, value }) => (
                   <div key={label}>
                     <dt className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">
                       {label}

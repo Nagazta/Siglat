@@ -59,12 +59,24 @@ export default function ReportCard({ report, onUpdate }) {
           restoredVotes={report.restoredVotes}
           onUpdate={(updated) => onUpdate?.(report.id, updated)}
         />
-        <Link
-          to={`/reports/${report.id}`}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline flex-shrink-0"
-        >
-          View Details <ArrowRight size={12} />
-        </Link>
+        <div className="flex items-center gap-3">
+          {report.sourceUrl && (
+            <a
+              href={report.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline flex-shrink-0"
+            >
+              Official Advisory ↗
+            </a>
+          )}
+          <Link
+            to={`/reports/${report.id}`}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline flex-shrink-0"
+          >
+            View Details <ArrowRight size={12} />
+          </Link>
+        </div>
       </div>
     </Card>
   );
