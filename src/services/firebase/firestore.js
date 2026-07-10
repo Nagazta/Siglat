@@ -123,3 +123,18 @@ export function subscribeToReports(onUpdate, onError) {
   );
 }
 
+/**
+ * Update/override the coordinates of an existing report.
+ * @param {string} reportId
+ * @param {number} latitude
+ * @param {number} longitude
+ */
+export async function updateReportLocation(reportId, latitude, longitude) {
+  const ref = doc(db, REPORTS_COLLECTION, reportId);
+  await updateDoc(ref, {
+    latitude: parseFloat(latitude),
+    longitude: parseFloat(longitude),
+    updatedAt: serverTimestamp(),
+  });
+}
+
