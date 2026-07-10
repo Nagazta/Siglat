@@ -113,45 +113,43 @@ export default function Home() {
   return (
     <div className="animate-fade-in">
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary via-primary-light to-secondary py-20 sm:py-28">
+      <section className="relative overflow-hidden bg-slate-900 grid-bg py-20 sm:py-28 border-b border-slate-800">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-white/5 blur-3xl" />
-          <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full bg-white/5 blur-3xl" />
+          <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-blue-500/5 blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 w-80 h-80 rounded-full bg-amber-500/5 blur-3xl" />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/15 text-white text-sm font-medium mb-6 backdrop-blur-sm">
-            <span className="w-2 h-2 rounded-full bg-success animate-pulse-slow" />
-            Live — Community Driven
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/80 text-slate-300 text-xs font-semibold mb-6 backdrop-blur-sm shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse-slow" />
+            Live — Community Driven Outage Grid
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-5">
-            Community{" "}
-            <span className="text-accent">Brownout</span>{" "}
-            Tracker
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-5 tracking-tight">
+            Community <span className="text-amber-400">Brownout</span> Tracker
           </h1>
-          <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Track and report power outages across the Philippines with the help of the community.
-            Real-time, transparent, and free.
+          <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
+            Track and report power outages across the Philippines in real time.
+            Empowering communities with transparent, reliable grid status information.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               to="/map"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl bg-white text-primary font-bold
-                         text-base transition-all duration-200 hover:bg-slate-50 hover:shadow-xl active:scale-95"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold
+                         text-sm transition-all duration-200 hover:bg-primary-dark hover:shadow-soft active:scale-95"
             >
-              <Map size={18} />
+              <Map size={16} />
               View Live Map
             </Link>
             <Link
               to="/reports?action=new"
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border-2 border-white text-white font-bold
-                         text-base transition-all duration-200 hover:bg-white/10 active:scale-95"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-bold
+                         text-sm transition-all duration-200 hover:bg-slate-700 active:scale-95"
             >
-              <AlertTriangle size={18} />
-              Report Brownout
+              <AlertTriangle size={16} />
+              Report Outage
             </Link>
           </div>
         </div>

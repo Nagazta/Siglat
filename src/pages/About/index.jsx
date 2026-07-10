@@ -17,15 +17,15 @@ export default function About() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="bg-gradient-to-br from-primary to-secondary py-16">
+      <div className="bg-slate-900 grid-bg py-16 border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/20 text-white mb-5">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-slate-800 border border-slate-700/80 text-amber-400 mb-5">
             <Info size={28} />
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
             About Siglat PH
           </h1>
-          <p className="text-white/80 max-w-xl mx-auto text-base leading-relaxed">
+          <p className="text-slate-300 max-w-xl mx-auto text-base leading-relaxed">
             An open-source, community-powered platform for tracking power outages across the Philippines.
           </p>
         </div>

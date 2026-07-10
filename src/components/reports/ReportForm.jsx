@@ -1,9 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { MapPin, Clock, AlertTriangle, FileText, Camera, CheckCircle2 } from "lucide-react";
+import { MapContainer as LeafletMap, TileLayer, CircleMarker, useMapEvents, useMap } from "react-leaflet";
 import Button from "../common/Button";
 import { STATUS } from "../../data/mockData";
 import { createReport } from "../../services/reports";
 import { uploadReportPhoto } from "../../services/firebase/storage";
+
+// Map events controller for the location pin picker
+function FormMapEvents({ onMapClick, selectedLatLng }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (selectedLatLng) {
+      map.setView([selectedLatLng.lat, selectedLatLng.lng], 14, { animate: true });
+    }
+  }, [selectedLatLng, map]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [map]);
+
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+
+  return null;
+}
 
 const INITIAL_FORM = {
   province: "",
@@ -50,6 +77,48 @@ export default function ReportForm({ onSuccess, onCancel }) {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [uploadProgress, setUploadProgress] = useState("");
 
+  // Location Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [selectedLocationName, setSelectedLocationName] = useState("");
+  const [manualMode, setManualMode] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+
+  // Debounced geocoding search
+  useEffect(() => {
+    if (searchQuery.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setLoadingSuggestions(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+            searchQuery
+          )}&format=json&addressdetails=1&limit=5&countrycodes=ph`,
+          {
+            headers: {
+              "User-Agent": "SiglatPH-Outage-Tracker",
+            },
+          }
+        );
+        if (res.ok) {
+          const data = await res.ok ? await res.json() : [];
+          setSuggestions(data);
+        }
+      } catch (err) {
+        console.error("Geocoding fetch error:", err);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery]);
+
   const set = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
@@ -62,13 +131,135 @@ export default function ReportForm({ onSuccess, onCancel }) {
     setPhotoPreview(URL.createObjectURL(file));
   };
 
+  const parseNominatimAddress = (item) => {
+    const address = item.address || {};
+    
+    // Barangay resolution (suburb, neighborhood, village, quarter, hamlet)
+    const barangay = address.suburb || 
+                     address.neighbourhood || 
+                     address.village || 
+                     address.quarter || 
+                     address.hamlet || 
+                     address.island || 
+                     address.district ||
+                     "";
+                     
+    // Municipality/City resolution (city, town, municipality, county)
+    const municipality = address.city || 
+                         address.town || 
+                         address.municipality || 
+                         address.county || 
+                         "";
+                         
+    // Province resolution (province, state, region)
+    const province = address.province || 
+                     address.state || 
+                     address.region || 
+                     "";
+
+    return {
+      barangay,
+      municipality,
+      province,
+      latitude: item.lat ? parseFloat(item.lat) : 14.5995,
+      longitude: item.lon ? parseFloat(item.lon) : 120.9842,
+    };
+  };
+
+  const selectedLatLng = useMemo(() => {
+    return form.latitude && form.longitude
+      ? { lat: parseFloat(form.latitude), lng: parseFloat(form.longitude) }
+      : null;
+  }, [form.latitude, form.longitude]);
+
+  const handleSelectSuggestion = (item) => {
+    const parsed = parseNominatimAddress(item);
+    
+    setForm((prev) => ({
+      ...prev,
+      province: parsed.province,
+      municipality: parsed.municipality,
+      barangay: parsed.barangay,
+      latitude: parsed.latitude.toString(),
+      longitude: parsed.longitude.toString(),
+    }));
+
+    setSelectedLocationName(item.display_name);
+    setSearchQuery("");
+    setSuggestions([]);
+    setShowMap(true);
+    
+    setErrors((prev) => {
+      const copy = { ...prev };
+      delete copy.location;
+      delete copy.province;
+      delete copy.municipality;
+      delete copy.barangay;
+      return copy;
+    });
+  };
+
+  const handleMapClickOrDrag = async (lat, lng) => {
+    setForm((prev) => ({
+      ...prev,
+      latitude: lat.toFixed(6),
+      longitude: lng.toFixed(6),
+    }));
+
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+        {
+          headers: {
+            "User-Agent": "SiglatPH-Outage-Tracker",
+          },
+        }
+      );
+      if (res.ok) {
+        const item = await res.json();
+        const parsed = parseNominatimAddress(item);
+        
+        setForm((prev) => ({
+          ...prev,
+          province: parsed.province,
+          municipality: parsed.municipality,
+          barangay: parsed.barangay,
+        }));
+        setSelectedLocationName(item.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        
+        setErrors((prev) => {
+          const copy = { ...prev };
+          delete copy.location;
+          delete copy.province;
+          delete copy.municipality;
+          delete copy.barangay;
+          return copy;
+        });
+      }
+    } catch (err) {
+      console.error("Reverse geocoding error:", err);
+    }
+  };
+
   const validate = () => {
     const newErrors = {};
-    REQUIRED_FIELDS.forEach((field) => {
-      if (!form[field]?.trim()) {
-        newErrors[field] = "This field is required.";
+    if (manualMode) {
+      REQUIRED_FIELDS.forEach((field) => {
+        if (!form[field]?.trim()) {
+          newErrors[field] = "This field is required.";
+        }
+      });
+    } else {
+      if (!form.province?.trim() || !form.municipality?.trim() || !form.barangay?.trim()) {
+        newErrors.location = "A specific location (including Barangay, Municipality, and Province) must be selected.";
       }
-    });
+      
+      ["status", "startTime"].forEach((field) => {
+        if (!form[field]?.trim()) {
+          newErrors[field] = "This field is required.";
+        }
+      });
+    }
     return newErrors;
   };
 
@@ -82,7 +273,6 @@ export default function ReportForm({ onSuccess, onCancel }) {
 
     setSubmitting(true);
     try {
-      // Create the report first to get an ID for the photo path
       const reportData = {
         ...form,
         latitude: form.latitude ? parseFloat(form.latitude) : 14.5995,
@@ -92,7 +282,6 @@ export default function ReportForm({ onSuccess, onCancel }) {
 
       const newReport = await createReport(reportData);
 
-      // Upload photo if provided
       if (photo && newReport.id) {
         setUploadProgress("Uploading photo...");
         const photoUrl = await uploadReportPhoto(photo, newReport.id);
@@ -117,48 +306,233 @@ export default function ReportForm({ onSuccess, onCancel }) {
           <MapPin size={13} /> Location
         </legend>
 
-        <div className="grid sm:grid-cols-3 gap-3">
-          {[
-            { field: "province", label: "Province", placeholder: "e.g. Metro Manila" },
-            { field: "municipality", label: "Municipality / City", placeholder: "e.g. Quezon City" },
-            { field: "barangay", label: "Barangay", placeholder: "e.g. Batasan Hills" },
-          ].map(({ field, label, placeholder }) => (
-            <div key={field}>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {label} <span className="text-danger">*</span>
-              </label>
+        {!manualMode ? (
+          <div className="flex flex-col gap-3 relative">
+            <label className="block text-xs font-semibold text-slate-700">
+              Search Location <span className="text-danger">*</span>
+              <span className="block text-[11px] text-muted font-normal mt-0.5">
+                Type your barangay or city name and select from the suggestions
+              </span>
+            </label>
+            <div className="relative">
               <input
                 type="text"
-                value={form[field]}
-                onChange={(e) => set(field, e.target.value)}
-                placeholder={placeholder}
-                className={`input-field text-sm ${errors[field] ? "border-danger ring-1 ring-danger/30" : ""}`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="e.g. Batasan Hills, Quezon City"
+                className={`input-field text-sm pr-10 ${errors.location ? "border-danger ring-1 ring-danger/30" : ""}`}
               />
-              {errors[field] && <p className="text-xs text-danger mt-1">{errors[field]}</p>}
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                {loadingSuggestions ? (
+                  <svg className="animate-spin h-4 w-4 text-muted" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                ) : (
+                  <MapPin size={16} className="text-muted" />
+                )}
+              </div>
             </div>
-          ))}
-        </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { field: "latitude", placeholder: "14.5995" },
-            { field: "longitude", placeholder: "120.9842" },
-          ].map(({ field, placeholder }) => (
-            <div key={field}>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 capitalize">
-                {field} <span className="text-muted font-normal text-[11px]">(optional)</span>
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={form[field]}
-                onChange={(e) => set(field, e.target.value)}
-                placeholder={placeholder}
-                className="input-field text-sm"
-              />
+            {/* Suggestions list */}
+            {suggestions.length > 0 && (
+              <ul className="absolute z-10 left-0 right-0 top-[68px] bg-white border border-border rounded-xl shadow-lg max-h-56 overflow-y-auto divide-y divide-slate-100 animate-slide-down">
+                {suggestions.map((item) => (
+                  <li key={item.place_id}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectSuggestion(item)}
+                      className="w-full text-left px-4 py-2.5 text-xs hover:bg-primary/5 hover:text-primary transition-colors text-slate-700 leading-snug"
+                    >
+                      {item.display_name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Selected confirmation */}
+            {selectedLocationName ? (
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs flex flex-col gap-2.5 animate-fade-in">
+                <div>
+                  <p className="font-semibold text-slate-700">Pin Reference Address:</p>
+                  <p className="text-slate-500 text-[11px] leading-relaxed mt-0.5">{selectedLocationName}</p>
+                </div>
+                
+                {/* Editable location components */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-slate-200/60 pt-2.5">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">🏡 Barangay *</label>
+                    <input
+                      type="text"
+                      value={form.barangay}
+                      onChange={(e) => set("barangay", e.target.value)}
+                      placeholder="Barangay name"
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">🏙️ City / Muni *</label>
+                    <input
+                      type="text"
+                      value={form.municipality}
+                      onChange={(e) => set("municipality", e.target.value)}
+                      placeholder="City or town"
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1 uppercase tracking-wider">🗺️ Province *</label>
+                    <input
+                      type="text"
+                      value={form.province}
+                      onChange={(e) => set("province", e.target.value)}
+                      placeholder="Province"
+                      className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-muted flex gap-3 border-t border-slate-200/40 pt-1.5 mt-0.5">
+                  <span>Coordinates — Lat: {parseFloat(form.latitude).toFixed(6)}</span>
+                  <span>Lng: {parseFloat(form.longitude).toFixed(6)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-center text-xs text-muted">
+                No location selected yet. Type to search above or drop a pin on the map.
+              </div>
+            )}
+
+            {/* Pin Location on Map Button and Expandable Map Drawer */}
+            <div className="flex flex-col gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => setShowMap((prev) => !prev)}
+                className="inline-flex items-center gap-2 justify-center px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all duration-200 active:scale-95 shadow-sm self-start"
+              >
+                <MapPin size={14} className="text-primary" />
+                {showMap ? "Hide Pin-Location Map" : "Pin Location on Map"}
+              </button>
+
+              {showMap && (
+                <div className="w-full h-72 rounded-xl overflow-hidden border border-slate-200 relative z-0 animate-fade-in">
+                  <LeafletMap
+                    center={selectedLatLng ? [selectedLatLng.lat, selectedLatLng.lng] : [12.8797, 121.7740]}
+                    zoom={selectedLatLng ? 14 : 5}
+                    className="w-full h-full"
+                    scrollWheelZoom={true}
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <FormMapEvents 
+                      onMapClick={handleMapClickOrDrag} 
+                      selectedLatLng={selectedLatLng} 
+                    />
+                    {selectedLatLng && (
+                      <CircleMarker
+                        center={[selectedLatLng.lat, selectedLatLng.lng]}
+                        radius={8}
+                        pathOptions={{
+                          color: "#ffffff",
+                          weight: 2,
+                          fillColor: "#EF4444",
+                          fillOpacity: 1,
+                        }}
+                      />
+                    )}
+                  </LeafletMap>
+                  <div className="absolute bottom-2 right-2 z-[400] bg-white/80 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] text-slate-500 pointer-events-none font-semibold border border-slate-100 shadow-sm">
+                    Click on map to drop location pin
+                  </div>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+
+            {errors.location && <p className="text-xs text-danger mt-0.5">{errors.location}</p>}
+
+            <button
+              type="button"
+              onClick={() => {
+                setManualMode(true);
+                setErrors((prev) => {
+                  const copy = { ...prev };
+                  delete copy.location;
+                  return copy;
+                });
+              }}
+              className="text-left text-xs font-semibold text-primary hover:underline self-start mt-1"
+            >
+              Can't find your location? Enter details manually →
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 animate-fade-in">
+            <div className="grid sm:grid-cols-3 gap-3">
+              {[
+                { field: "province", label: "Province", placeholder: "e.g. Metro Manila" },
+                { field: "municipality", label: "Municipality / City", placeholder: "e.g. Quezon City" },
+                { field: "barangay", label: "Barangay", placeholder: "e.g. Batasan Hills" },
+              ].map(({ field, label, placeholder }) => (
+                <div key={field}>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {label} <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form[field]}
+                    onChange={(e) => set(field, e.target.value)}
+                    placeholder={placeholder}
+                    className={`input-field text-sm ${errors[field] ? "border-danger ring-1 ring-danger/30" : ""}`}
+                  />
+                  {errors[field] && <p className="text-xs text-danger mt-1">{errors[field]}</p>}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { field: "latitude", placeholder: "14.5995" },
+                { field: "longitude", placeholder: "120.9842" },
+              ].map(({ field, placeholder }) => (
+                <div key={field}>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 capitalize">
+                    {field} <span className="text-muted font-normal text-[11px]">(optional)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={form[field]}
+                    onChange={(e) => set(field, e.target.value)}
+                    placeholder={placeholder}
+                    className="input-field text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setManualMode(false);
+                setForm((prev) => ({
+                  ...prev,
+                  province: "",
+                  municipality: "",
+                  barangay: "",
+                  latitude: "",
+                  longitude: "",
+                }));
+                setSelectedLocationName("");
+              }}
+              className="text-left text-xs font-semibold text-primary hover:underline self-start"
+            >
+              ← Switch back to automatic search
+            </button>
+          </div>
+        )}
       </fieldset>
 
       {/* ── Outage Details ── */}

@@ -4,6 +4,7 @@ import {
   getDocs,
   getDoc,
   addDoc,
+  setDoc,
   updateDoc,
   orderBy,
   query,
@@ -54,8 +55,20 @@ export async function addReport(reportData) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-  const docRef = await addDoc(reportsRef(), payload);
-  return { id: docRef.id, ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  
+  // Client-side auto-generated ID to prevent pending promise hangs
+  const docRef = doc(reportsRef());
+  
+  setDoc(docRef, payload).catch((err) => {
+    console.error("Firestore write failed:", err);
+  });
+  
+  return { 
+    id: docRef.id, 
+    ...payload, 
+    createdAt: new Date().toISOString(), 
+    updatedAt: new Date().toISOString() 
+  };
 }
 
 /**

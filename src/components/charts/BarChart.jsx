@@ -33,7 +33,7 @@ export default function BarChart({
   dataKey = "value",
   xKey = "label",
   horizontal = false,
-  colors = ["#6D28D9"],
+  colors = ["#2563EB"],
   height = 220,
 }) {
   if (horizontal) {
