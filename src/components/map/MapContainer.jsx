@@ -33,44 +33,61 @@ export default function MapContainer({
   flyToZoom = 13,
   className = "",
 }) {
-  // Detect overlapping coordinates and apply spiral dispersal to prevent stacking
+  // Detect overlapping coordinates (within ~30 meters) and apply spiral dispersal to prevent stacking
   const processedReports = useMemo(() => {
-    const coordinateGroups = {};
-
-    reports.forEach((r) => {
-      const lat = parseFloat(r.latitude);
-      const lng = parseFloat(r.longitude);
-      if (isNaN(lat) || isNaN(lng)) return;
-
-      // Group by coordinate rounded to 5 decimal places (~1 meter precision)
-      const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
-      if (!coordinateGroups[key]) {
-        coordinateGroups[key] = [];
-      }
-      coordinateGroups[key].push(r);
-    });
-
     const result = [];
+    const dispersedIndices = new Set();
 
-    Object.keys(coordinateGroups).forEach((key) => {
-      const group = coordinateGroups[key];
-      if (group.length === 1) {
-        result.push(group[0]);
+    for (let i = 0; i < reports.length; i++) {
+      if (dispersedIndices.has(i)) continue;
+
+      const r1 = reports[i];
+      const lat1 = parseFloat(r1.latitude);
+      const lng1 = parseFloat(r1.longitude);
+      if (isNaN(lat1) || isNaN(lng1)) continue;
+
+      const closeGroup = [r1];
+      const closeIndices = [i];
+
+      for (let j = i + 1; j < reports.length; j++) {
+        if (dispersedIndices.has(j)) continue;
+
+        const r2 = reports[j];
+        const lat2 = parseFloat(r2.latitude);
+        const lng2 = parseFloat(r2.longitude);
+        if (isNaN(lat2) || isNaN(lng2)) continue;
+
+        const dLat = lat1 - lat2;
+        const dLng = lng1 - lng2;
+        const distance = Math.sqrt(dLat * dLat + dLng * dLng);
+
+        // Threshold: 0.00028 degrees (~30 meters)
+        if (distance < 0.00028) {
+          closeGroup.push(r2);
+          closeIndices.push(j);
+        }
+      }
+
+      if (closeGroup.length === 1) {
+        result.push(r1);
       } else {
-        // Disperse in a small spiral/circle ring
-        group.forEach((r, index) => {
-          const angle = (index / group.length) * 2 * Math.PI;
-          // Offset radius (around 15-20 meters)
-          const offsetRadius = 0.00015 * (1 + Math.floor(index / 8) * 0.5);
+        // Disperse in a small circle ring around the first coordinate point
+        closeGroup.forEach((r, index) => {
+          const angle = (index / closeGroup.length) * 2 * Math.PI;
+          // Offset radius (around 25 meters to ensure visual separation)
+          const offsetRadius = 0.00025 * (1 + Math.floor(index / 8) * 0.4);
 
           result.push({
             ...r,
-            latitude: parseFloat(r.latitude) + offsetRadius * Math.cos(angle),
-            longitude: parseFloat(r.longitude) + offsetRadius * Math.sin(angle),
+            latitude: lat1 + offsetRadius * Math.cos(angle),
+            longitude: lng1 + offsetRadius * Math.sin(angle),
           });
         });
       }
-    });
+
+      // Mark all items in the current group as processed
+      closeIndices.forEach((idx) => dispersedIndices.add(idx));
+    }
 
     return result;
   }, [reports]);
