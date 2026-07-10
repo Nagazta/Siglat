@@ -42,18 +42,29 @@ export default function ReportPopup({ report }) {
         </p>
       )}
 
-      {/* Confirmations + link */}
       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
         <span className="flex items-center gap-1 text-xs text-slate-500">
           <ThumbsUp size={11} />
           {report.confirmations} confirmed
         </span>
-        <Link
-          to={`/reports/${report.id}`}
-          className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary hover:underline"
-        >
-          Details <ArrowRight size={11} />
-        </Link>
+        <div className="flex items-center gap-2.5">
+          {report.sourceUrl && (
+            <a
+              href={report.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline flex-shrink-0"
+            >
+              Source ↗
+            </a>
+          )}
+          <Link
+            to={`/reports/${report.id}`}
+            className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary hover:underline"
+          >
+            Details <ArrowRight size={11} />
+          </Link>
+        </div>
       </div>
     </div>
   );

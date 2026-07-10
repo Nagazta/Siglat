@@ -68,7 +68,7 @@ function parseTime(dateStr, timeStr) {
 /**
  * Parser that splits raw text into detailed advisory reports.
  */
-function parseAdvisoryContent(rawText) {
+function parseAdvisoryContent(rawText, url) {
   const reports = [];
   
   // Split the text into segments by date lines (e.g. "July 12, 2026 (Sunday)")
@@ -177,6 +177,7 @@ function parseAdvisoryContent(rawText) {
       estimatedEnd: dates.endIso,
       reason,
       notes: `VECO Advisory:\nTime: ${seg.time}\nPurpose: ${seg.purpose}\nDetails: ${seg.areas}`,
+      sourceUrl: url || null,
     });
   }
   
@@ -200,20 +201,27 @@ async function scrapeVisayanElectric() {
     console.log(`🔗 Navigating to VECO list page: ${listUrl}...`);
     await page.goto(listUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
     
-    // Allow dynamic cards to render
-    await page.waitForTimeout(5000);
-
-    // Extract links to individual posts
-    const postUrls = await page.evaluate(() => {
-      const anchors = Array.from(document.querySelectorAll("a"));
-      return anchors
-        .map(a => a.href)
-        .filter(href => href.includes("/post/service-interruption"));
-    });
-
-    // Remove duplicates
-    const uniqueUrls = [...new Set(postUrls)].slice(0, 3); // fetch top 3 posts (recent dates)
-    console.log(`📦 Found ${uniqueUrls.length} recent interruption posts:`, uniqueUrls);
+     // Allow dynamic cards to render
+     await page.waitForTimeout(5000);
+ 
+     // Scroll down multiple times to trigger lazy-loading of older historical cards on the Wix page
+     console.log("Scrolling down to load historical advisory cards...");
+     for (let i = 0; i < 6; i++) {
+       await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+       await page.waitForTimeout(1000);
+     }
+ 
+     // Extract links to individual posts
+     const postUrls = await page.evaluate(() => {
+       const anchors = Array.from(document.querySelectorAll("a"));
+       return anchors
+         .map(a => a.href)
+         .filter(href => href.includes("/post/service-interruption"));
+     });
+ 
+     // Remove duplicates
+     const uniqueUrls = [...new Set(postUrls)].slice(0, 15); // fetch up to 15 recent and historical posts
+     console.log(`📦 Found ${uniqueUrls.length} total interruption posts (including historical):`, uniqueUrls);
 
     const allReports = [];
 
@@ -229,7 +237,7 @@ async function scrapeVisayanElectric() {
 
       if (pageText.trim().length > 0) {
         console.log("📄 Content retrieved. Parsing advisories...");
-        const parsedReports = parseAdvisoryContent(pageText);
+        const parsedReports = parseAdvisoryContent(pageText, url);
         console.log(`✅ Extracted ${parsedReports.length} reports from post.`);
         allReports.push(...parsedReports);
       } else {
