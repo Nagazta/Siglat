@@ -40,6 +40,38 @@ const CEBU_COORDINATES = {
   "minglanilla": { lat: 10.2458, lng: 123.7972 },
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Geocode a location using OpenStreetMap Nominatim
+ */
+async function geocodeLocation(barangay, municipality, province) {
+  try {
+    const query = `${barangay}, ${municipality}, ${province}, Philippines`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+    
+    console.log(`🔍 Geocoding OSM: "${query}"...`);
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "SiglatCommunityOutageTracker/1.0 (kyle@siglat.ph)"
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.length > 0) {
+        return {
+          lat: parseFloat(data[0].lat),
+          lng: parseFloat(data[0].lon)
+        };
+      }
+    }
+  } catch (err) {
+    console.error(`⚠️ Geocoding failed for ${barangay}, ${municipality}:`, err.message);
+  }
+  return null;
+}
+
 /**
  * Clean up text blocks and format dates.
  */
@@ -124,8 +156,10 @@ async function scrapeVisayanElectric() {
         const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
         
         children.forEach(el => {
-          const text = el.innerText.trim();
-          const tagName = el.tagName;
+          if (!el) return;
+          const text = (el.innerText || "").trim();
+          const tagName = el.tagName || "";
+          if (!tagName) return;
           
           const isDate = (tagName.startsWith("H") || tagName === "P" || tagName === "SPAN") && 
                          months.some(m => text.toLowerCase().startsWith(m)) && 
@@ -207,7 +241,17 @@ async function scrapeVisayanElectric() {
         }
         
         // Format coordinates
-        const coords = CEBU_COORDINATES[municipality.toLowerCase()] || CEBU_COORDINATES["cebu city"];
+        let coords = CEBU_COORDINATES[municipality.toLowerCase()] || CEBU_COORDINATES["cebu city"];
+        
+        // Dynamic geocoding to resolve exact Barangay coordinates
+        await sleep(1000); // 1-second delay to comply with OSM usage policy
+        const geo = await geocodeLocation(barangay, municipality, "Cebu");
+        if (geo) {
+          coords = geo;
+        } else {
+          console.log(`⚠️ Using fallback coordinates for ${barangay}, ${municipality}`);
+        }
+        
         const dates = parseTime(seg.date, seg.time);
 
         let reason = "Line maintenance";
