@@ -121,21 +121,47 @@ export default function ReportDetail() {
             </Card>
 
             {/* VECO Map Image overlay */}
-            {report.mapImageUrl && (
-              <Card className="flex flex-col gap-3">
-                <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                  <MapPin size={15} className="text-amber-500" />
-                  Official Outage Area Map
-                </h2>
-                <div className="w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex justify-center p-2.5">
-                  <img
-                    src={report.mapImageUrl}
-                    alt="Visayan Electric Outage Map"
-                    className="max-w-full max-h-96 object-contain rounded-lg shadow-sm"
-                  />
-                </div>
-              </Card>
-            )}
+            {report.mapImageUrl && (() => {
+              const highResMapUrl = report.mapImageUrl.includes("wixstatic.com/media/")
+                ? report.mapImageUrl.split("/v1/fill/")[0]
+                : report.mapImageUrl;
+
+              return (
+                <Card className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <MapPin size={15} className="text-amber-500" />
+                      Official Outage Area Map
+                    </h2>
+                    <a
+                      href={highResMapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-semibold text-primary hover:underline"
+                    >
+                      View Original
+                    </a>
+                  </div>
+                  <div className="relative group">
+                    <a
+                      href={highResMapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex justify-center p-2.5 hover:opacity-95 transition-all cursor-zoom-in block"
+                    >
+                      <img
+                        src={highResMapUrl}
+                        alt="Visayan Electric Outage Map"
+                        className="max-w-full max-h-96 object-contain rounded-lg shadow-sm"
+                      />
+                    </a>
+                    <p className="text-[11px] text-slate-400 mt-2 text-center">
+                      💡 Click map image to view in full resolution
+                    </p>
+                  </div>
+                </Card>
+              );
+            })()}
 
             {/* Notes */}
             {report.notes && (

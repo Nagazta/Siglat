@@ -37,9 +37,9 @@ export default function ReportPopup({ report }) {
 
       {/* Notes preview */}
       {report.notes && (
-        <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-2.5 py-1.5 mb-2 line-clamp-2">
+        <div className="text-xs text-slate-600 bg-slate-50 rounded-lg px-2.5 py-1.5 mb-2 max-h-20 overflow-y-auto whitespace-pre-line">
           {report.notes}
-        </p>
+        </div>
       )}
 
       <div className="flex items-center justify-between pt-2 border-t border-slate-100">
