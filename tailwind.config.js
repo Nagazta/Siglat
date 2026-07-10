@@ -8,16 +8,16 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: "#6D28D9",
-          light: "#7C3AED",
-          dark: "#5B21B6",
+          DEFAULT: "#2563EB",
+          light: "#3B82F6",
+          dark: "#1D4ED8",
         },
         secondary: {
-          DEFAULT: "#8B5CF6",
-          light: "#A78BFA",
-          dark: "#7C3AED",
+          DEFAULT: "#475569",
+          light: "#64748B",
+          dark: "#334155",
         },
-        accent: "#A78BFA",
+        accent: "#F59E0B",
         background: "#F8FAFC",
         success: "#22C55E",
         warning: "#FACC15",
@@ -32,7 +32,7 @@ export default {
       boxShadow: {
         soft: "0 2px 8px rgba(0,0,0,0.06)",
         card: "0 4px 16px rgba(0,0,0,0.08)",
-        glow: "0 0 20px rgba(109,40,217,0.25)",
+        glow: "0 0 12px rgba(37,99,235,0.15)",
       },
       borderRadius: {
         xl: "1rem",

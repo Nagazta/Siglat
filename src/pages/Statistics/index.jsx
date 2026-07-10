@@ -19,7 +19,7 @@ function getLast7Days() {
   });
 }
 
-const CHART_COLORS = ["#6D28D9", "#8B5CF6", "#A78BFA", "#7C3AED", "#5B21B6", "#EF4444", "#FACC15", "#22C55E", "#94A3B8", "#EC4899"];
+const CHART_COLORS = ["#2563EB", "#475569", "#FBBF24", "#10B981", "#0D9488", "#3B82F6", "#F59E0B", "#EF4444", "#94A3B8", "#1E293B"];
 
 export default function Statistics() {
   const { reports, loading } = useReports();
@@ -170,7 +170,7 @@ export default function Statistics() {
                     data={stats.recentByDay}
                     dataKey="value"
                     xKey="label"
-                    color="#6D28D9"
+                    color="#2563EB"
                     name="Reports"
                     height={220}
                   />
@@ -211,7 +211,7 @@ export default function Statistics() {
                     dataKey="value"
                     xKey="label"
                     horizontal={true}
-                    colors={["#EF4444", "#F97316", "#FACC15", "#6D28D9", "#8B5CF6", "#A78BFA", "#22C55E", "#94A3B8"]}
+                    colors={["#EF4444", "#F97316", "#FACC15", "#2563EB", "#475569", "#64748B", "#22C55E", "#94A3B8"]}
                     height={stats.byBarangay.length * 32 + 20}
                   />
                 ) : (
@@ -231,7 +231,7 @@ export default function Statistics() {
                     dataKey="value"
                     xKey="label"
                     horizontal={true}
-                    colors={["#FACC15", "#F59E0B", "#D97706", "#B45309", "#92400E", "#78350F", "#6D28D9", "#5B21B6"]}
+                    colors={["#FACC15", "#F59E0B", "#D97706", "#B45309", "#92400E", "#78350F", "#2563EB", "#1D4ED8"]}
                     height={stats.mostConfirmed.length * 32 + 20}
                   />
                 ) : (

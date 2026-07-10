@@ -35,7 +35,7 @@ export default function AreaChart({
   data = [],
   dataKey = "value",
   xKey = "label",
-  color = "#6D28D9",
+  color = "#2563EB",
   name = "Reports",
   height = 220,
 }) {
