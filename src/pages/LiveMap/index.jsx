@@ -41,7 +41,6 @@ export default function LiveMap() {
 
   const handleMarkerClick = (report) => {
     setSelectedId(report.id);
-    flyToReport(report);
   };
 
   const handleSidebarItemClick = (report) => {

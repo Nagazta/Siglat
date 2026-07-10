@@ -341,14 +341,17 @@ async function scrapeVisayanElectric() {
           });
           console.log(`✅ Saved new Cebu report for ${report.barangay}, ${report.municipality} (ID: ${docRef.id})`);
         } else {
-          // Update the existing document to enrich it with mapImageUrl and sourceUrl if they were missing
+          // Update the existing document to enrich it with geocoded coordinates, notes, mapImageUrl, and sourceUrl
           const existingDoc = existingDocs.docs[0];
           await updateDoc(existingDoc.ref, {
+            latitude: report.latitude,
+            longitude: report.longitude,
+            notes: report.notes,
             mapImageUrl: report.mapImageUrl,
             sourceUrl: report.sourceUrl,
             updatedAt: new Date().toISOString(),
           });
-          console.log(`🔄 Updated existing report for ${report.barangay}, ${report.municipality} with map image & source (ID: ${existingDoc.id})`);
+          console.log(`🔄 Updated existing report for ${report.barangay}, ${report.municipality} with new geocoded coords, map image & source (ID: ${existingDoc.id})`);
         }
       }
     } else {
