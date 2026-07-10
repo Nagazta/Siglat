@@ -9,6 +9,7 @@
 @tailwind utilities;
 
 @layer base {
+
   *,
   *::before,
   *::after {
@@ -24,7 +25,12 @@
     min-height: 100vh;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-semibold tracking-tight;
   }
 }
@@ -44,24 +50,19 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold
-           transition-all duration-200 hover:bg-primary-dark hover:shadow-glow active:scale-95;
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold transition-all duration-200 hover:bg-primary-dark hover:shadow-glow active:scale-95;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-secondary/10 text-secondary font-semibold
-           transition-all duration-200 hover:bg-secondary/20 active:scale-95;
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-secondary/10 text-secondary font-semibold transition-all duration-200 hover:bg-secondary/20 active:scale-95;
   }
 
   .btn-outline {
-    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-primary text-primary font-semibold
-           transition-all duration-200 hover:bg-primary hover:text-white active:scale-95;
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-primary text-primary font-semibold transition-all duration-200 hover:bg-primary hover:text-white active:scale-95;
   }
 
   .input-field {
-    @apply w-full px-4 py-2.5 rounded-xl border border-border bg-white text-slate-800
-           placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary
-           transition-all duration-200;
+    @apply w-full px-4 py-2.5 rounded-xl border border-border bg-white text-slate-800 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200;
   }
 
   .badge {
@@ -69,8 +70,7 @@
   }
 
   .nav-link {
-    @apply relative px-3 py-2 rounded-lg text-slate-600 font-medium transition-all duration-200
-           hover:text-primary hover:bg-primary/5;
+    @apply relative px-3 py-2 rounded-lg text-slate-600 font-medium transition-all duration-200 hover:text-primary hover:bg-primary/5;
   }
 
   .nav-link.active {
@@ -88,13 +88,16 @@
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: #f1f5f9;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 99px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
