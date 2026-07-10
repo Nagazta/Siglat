@@ -21,7 +21,7 @@ export default function MapMarker({ report, onClick }) {
 
   return (
     <CircleMarker
-      center={[report.latitude, report.longitude]}
+      center={[parseFloat(report.latitude), parseFloat(report.longitude)]}
       radius={radius}
       pathOptions={{
         color: "#ffffff",
