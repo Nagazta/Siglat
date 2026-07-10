@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { MapContainer as LeafletMap, TileLayer, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import MapMarker from "./MapMarker";
@@ -33,6 +33,48 @@ export default function MapContainer({
   flyToZoom = 13,
   className = "",
 }) {
+  // Detect overlapping coordinates and apply spiral dispersal to prevent stacking
+  const processedReports = useMemo(() => {
+    const coordinateGroups = {};
+
+    reports.forEach((r) => {
+      const lat = parseFloat(r.latitude);
+      const lng = parseFloat(r.longitude);
+      if (isNaN(lat) || isNaN(lng)) return;
+
+      // Group by coordinate rounded to 5 decimal places (~1 meter precision)
+      const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+      if (!coordinateGroups[key]) {
+        coordinateGroups[key] = [];
+      }
+      coordinateGroups[key].push(r);
+    });
+
+    const result = [];
+
+    Object.keys(coordinateGroups).forEach((key) => {
+      const group = coordinateGroups[key];
+      if (group.length === 1) {
+        result.push(group[0]);
+      } else {
+        // Disperse in a small spiral/circle ring
+        group.forEach((r, index) => {
+          const angle = (index / group.length) * 2 * Math.PI;
+          // Offset radius (around 15-20 meters)
+          const offsetRadius = 0.00015 * (1 + Math.floor(index / 8) * 0.5);
+
+          result.push({
+            ...r,
+            latitude: parseFloat(r.latitude) + offsetRadius * Math.cos(angle),
+            longitude: parseFloat(r.longitude) + offsetRadius * Math.sin(angle),
+          });
+        });
+      }
+    });
+
+    return result;
+  }, [reports]);
+
   return (
     <div className={`relative w-full h-full rounded-2xl overflow-hidden ${className}`}>
       <LeafletMap
@@ -52,7 +94,7 @@ export default function MapContainer({
 
         {/* Render a clustered set of markers for each report */}
         <MarkerClusterGroup chunkedLoading>
-          {reports.map((report) => (
+          {processedReports.map((report) => (
             <MapMarker
               key={report.id}
               report={report}
