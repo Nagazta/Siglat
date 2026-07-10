@@ -25,14 +25,23 @@ export default function ReportDetail() {
 
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [tempCoords, setTempCoords] = useState(null);
+  const [passcode, setPasscode] = useState("");
   const [savingLocation, setSavingLocation] = useState(false);
 
   const handleSaveLocation = async () => {
     if (!tempCoords) return;
+
+    const expectedPasscode = import.meta.env.VITE_ADMIN_PASSCODE || "admin123";
+    if (passcode !== expectedPasscode) {
+      alert("Incorrect admin passcode!");
+      return;
+    }
+
     setSavingLocation(true);
     try {
       await updateReportLocation(id, tempCoords.lat, tempCoords.lng);
       setIsEditingLocation(false);
+      setPasscode("");
       alert("Coordinates overridden successfully!");
     } catch (err) {
       console.error(err);
@@ -182,19 +191,31 @@ export default function ReportDetail() {
               {/* Editing controls panel */}
               {isEditingLocation ? (
                 <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="text-[11px] text-slate-500 font-mono">
-                    New coordinates: <span className="font-semibold">{tempCoords?.lat.toFixed(5)}, {tempCoords?.lng.toFixed(5)}</span>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[11px] text-slate-500 font-mono">
+                      New coordinates: <span className="font-semibold">{tempCoords?.lat.toFixed(5)}, {tempCoords?.lng.toFixed(5)}</span>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Enter Admin Passcode"
+                      value={passcode}
+                      onChange={(e) => setPasscode(e.target.value)}
+                      className="px-2 py-1 rounded text-xs border border-slate-200 focus:outline-none focus:border-primary w-40 font-sans"
+                    />
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setIsEditingLocation(false)}
+                      onClick={() => {
+                        setIsEditingLocation(false);
+                        setPasscode("");
+                      }}
                       className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-all"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleSaveLocation}
-                      disabled={savingLocation || !tempCoords}
+                      disabled={savingLocation || !tempCoords || !passcode}
                       className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-dark disabled:opacity-50 text-xs font-semibold text-white transition-all"
                     >
                       {savingLocation ? "Saving..." : "Save Location"}
