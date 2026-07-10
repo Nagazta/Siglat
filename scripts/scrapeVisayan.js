@@ -43,11 +43,38 @@ const CEBU_COORDINATES = {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Clean up barangay name strings for accurate Nominatim indexing.
+ */
+function cleanBarangayName(name) {
+  let clean = name.trim();
+  
+  // Extract parentheses first if present, e.g. "Cebu City & Mandaue City (Banilad)" -> "Banilad"
+  const parenMatch = clean.match(/\(([^)]+)\)/);
+  if (parenMatch && parenMatch[1]) {
+    clean = parenMatch[1];
+  }
+  
+  // Split by common separators (like & or / or and) and take the first part
+  clean = clean.split(/&|and|\/|,/)[0].trim();
+  
+  // Remove "portion of" prefix
+  clean = clean.replace(/portion of/i, "").trim();
+  
+  return clean;
+}
+
+/**
  * Geocode a location using OpenStreetMap Nominatim
  */
 async function geocodeLocation(barangay, municipality, province) {
   try {
-    const query = `${barangay}, ${municipality}, ${province}, Philippines`;
+    const clean = cleanBarangayName(barangay);
+    if (!clean || clean.toLowerCase() === "unknown" || clean.toLowerCase() === "portion") {
+      return null;
+    }
+    
+    // Search by Barangay + Cebu province directly (letting Nominatim resolve the correct town/city)
+    const query = `${clean}, Cebu, Philippines`;
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
     
     console.log(`🔍 Geocoding OSM: "${query}"...`);
@@ -60,10 +87,15 @@ async function geocodeLocation(barangay, municipality, province) {
     if (response.ok) {
       const data = await response.json();
       if (data && data.length > 0) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon)
-        };
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        
+        // Safety bounds check for Cebu province (9.5 to 11.5 Lat, 123.0 to 124.5 Lng)
+        if (lat >= 9.5 && lat <= 11.5 && lon >= 123.0 && lon <= 124.5) {
+          return { lat, lng: lon };
+        } else {
+          console.log(`⚠️ Geocoded coords for "${query}" (${lat}, ${lon}) were out of Cebu bounds. Discarding.`);
+        }
       }
     }
   } catch (err) {
