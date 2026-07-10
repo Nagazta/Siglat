@@ -228,7 +228,11 @@ async function scrapeVisayanElectric() {
                 } else if (label.includes("map")) {
                   const img = valueCell.querySelector("img");
                   if (img) {
-                    entry.mapImageUrl = img.src || img.getAttribute("data-src") || img.getAttribute("src") || "";
+                    let src = img.src || img.getAttribute("data-src") || img.getAttribute("src") || "";
+                    if (src.includes("wixstatic.com/media/")) {
+                      src = src.split("/v1/fill/")[0];
+                    }
+                    entry.mapImageUrl = src;
                   }
                 }
               }
