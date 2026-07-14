@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Clock, FileText, AlertTriangle } from "lucide-react";
-import { MapContainer as LeafletMap, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { ArrowLeft, MapPin, Clock, FileText, AlertTriangle, Edit, CheckCircle2 } from "lucide-react";
+import { MapContainer as LeafletMap, TileLayer, CircleMarker, Popup, useMapEvents } from "react-leaflet";
 import Card from "../../components/common/Card";
 import Badge from "../../components/common/Badge";
 import ReportTimeline from "../../components/reports/ReportTimeline";
@@ -9,11 +9,70 @@ import ConfirmButton from "../../components/reports/ConfirmButton";
 import Loading from "../../components/common/Loading";
 import { useReports } from "../../hooks/useReports";
 import { formatDate, getStatusConfig } from "../../utils";
+import { updateReportLocation } from "../../services/firebase/firestore";
+
+function MapEvents({ onClick }) {
+  useMapEvents({
+    click: onClick,
+  });
+  return null;
+}
 
 export default function ReportDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { reports, loading, updateReport } = useReports();
+
+  const [isEditingLocation, setIsEditingLocation] = useState(false);
+  const [tempCoords, setTempCoords] = useState(null);
+  const [passcode, setPasscode] = useState("");
+  const [showPasscodeModal, setShowPasscodeModal] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const triggerToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
+
+  const handleSaveClick = () => {
+    if (!tempCoords) return;
+    setShowPasscodeModal(true);
+  };
+
+  const handleConfirmSave = async () => {
+    const expectedPasscode = import.meta.env.VITE_ADMIN_PASSCODE || "admin123";
+    if (passcode !== expectedPasscode) {
+      triggerToast("error", "Access Denied: Incorrect admin passcode!");
+      setShowPasscodeModal(false);
+      setPasscode("");
+      return;
+    }
+
+    setSavingLocation(true);
+    try {
+      await updateReportLocation(id, tempCoords.lat, tempCoords.lng);
+      setIsEditingLocation(false);
+      setShowPasscodeModal(false);
+      setPasscode("");
+      triggerToast("success", "Coordinates overridden successfully!");
+    } catch (err) {
+      console.error(err);
+      triggerToast("error", "System Error: Failed to write coordinates.");
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
+  const handleMapClick = (e) => {
+    if (!isEditingLocation) return;
+    setTempCoords({
+      lat: e.latlng.lat,
+      lng: e.latlng.lng
+    });
+  };
 
   const report = useMemo(
     () => reports.find((r) => r.id === id) || null,
@@ -90,34 +149,99 @@ export default function ReportDetail() {
           <div className="lg:col-span-2 flex flex-col gap-6">
             {/* Mini map */}
             <Card padding="none" className="overflow-hidden">
-              <div style={{ height: "280px" }}>
+              {isEditingLocation && (
+                <div className="p-3 bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+                  Edit Mode: Click anywhere on the map to drop a new pin, then click Save.
+                </div>
+              )}
+              <div style={{ height: "300px" }}>
                 <LeafletMap
                   center={[parseFloat(report.latitude), parseFloat(report.longitude)]}
                   zoom={14}
                   className="w-full h-full"
-                  zoomControl={false}
-                  scrollWheelZoom={false}
+                  zoomControl={isEditingLocation}
+                  scrollWheelZoom={isEditingLocation}
                 >
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  <CircleMarker
-                    center={[parseFloat(report.latitude), parseFloat(report.longitude)]}
-                    radius={12}
-                    pathOptions={{
-                      color: "#ffffff",
-                      weight: 3,
-                      fillColor: config.markerColor,
-                      fillOpacity: 0.9,
-                    }}
-                  >
-                    <Popup>
-                      <span className="text-xs font-semibold">{report.barangay}</span>
-                    </Popup>
-                  </CircleMarker>
+                  <MapEvents onClick={handleMapClick} />
+                  
+                  {/* Current database coordinates pin */}
+                  {!isEditingLocation && (
+                    <CircleMarker
+                      center={[parseFloat(report.latitude), parseFloat(report.longitude)]}
+                      radius={12}
+                      pathOptions={{
+                        color: "#ffffff",
+                        weight: 3,
+                        fillColor: config.markerColor,
+                        fillOpacity: 0.9,
+                      }}
+                    >
+                      <Popup>
+                        <span className="text-xs font-semibold">{report.barangay}</span>
+                      </Popup>
+                    </CircleMarker>
+                  )}
+
+                  {/* Temporary drag/click override pin */}
+                  {isEditingLocation && tempCoords && (
+                    <CircleMarker
+                      center={[tempCoords.lat, tempCoords.lng]}
+                      radius={12}
+                      pathOptions={{
+                        color: "#ffffff",
+                        weight: 3,
+                        fillColor: "#3B82F6", // Blue for editing
+                        fillOpacity: 0.9,
+                      }}
+                    />
+                  )}
                 </LeafletMap>
               </div>
+
+              {/* Editing controls panel */}
+              {isEditingLocation ? (
+                <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-[11px] text-slate-500 font-mono">
+                    New coordinates: <span className="font-semibold">{tempCoords?.lat.toFixed(5)}, {tempCoords?.lng.toFixed(5)}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setIsEditingLocation(false);
+                        setPasscode("");
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-50 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveClick}
+                      disabled={savingLocation || !tempCoords}
+                      className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-dark disabled:opacity-50 text-xs font-semibold text-white transition-all"
+                    >
+                      Save Location
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 border-t border-slate-100 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setTempCoords({ lat: parseFloat(report.latitude), lng: parseFloat(report.longitude) });
+                      setIsEditingLocation(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-primary/10 hover:text-primary rounded-lg transition-all"
+                  >
+                    <Edit size={12} />
+                    Override Location Coordinates
+                  </button>
+                </div>
+              )}
             </Card>
 
             {/* VECO Map Image overlay */}
@@ -292,6 +416,68 @@ export default function ReportDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── Passcode Authorization Modal ── */}
+      {showPasscodeModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-sm w-full p-6 animate-scale-in">
+            <h3 className="font-bold text-slate-800 text-lg mb-2 flex items-center gap-2">
+              <Edit size={18} className="text-primary" />
+              Authorize Action
+            </h3>
+            <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+              Please enter the Admin Passcode to authorize this coordinate override:
+            </p>
+            <input
+              type="password"
+              placeholder="Admin Passcode"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 focus:border-primary rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 mb-4 transition-all"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && passcode) handleConfirmSave();
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowPasscodeModal(false);
+                  setPasscode("");
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSave}
+                disabled={!passcode || savingLocation}
+                className="px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-dark disabled:opacity-50 rounded-xl transition-all"
+              >
+                {savingLocation ? "Saving..." : "Verify & Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Floating Toast Overlay ── */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-[9999] animate-slide-in">
+          <div className={`flex items-center gap-3 px-4 py-3.5 border rounded-xl shadow-lg text-sm font-semibold max-w-md ${
+            toast.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}>
+            {toast.type === "success" ? (
+              <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0" />
+            ) : (
+              <AlertTriangle size={18} className="text-rose-500 flex-shrink-0" />
+            )}
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

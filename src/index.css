@@ -1,5 +1,5 @@
 /* ─── Google Fonts ─── */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 /* ─── Leaflet ─── */
 @import "leaflet/dist/leaflet.css";
@@ -49,34 +49,84 @@
     @apply bg-white rounded-2xl shadow-card border border-border p-6;
   }
 
-  .btn-primary {
-    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold transition-all duration-200 hover:bg-primary-dark hover:shadow-glow active:scale-95;
+  /* Grid-themed dark card */
+  .card-dark {
+    background-color: #1E293B;
+    border-radius: 1.25rem;
+    border: 1px solid rgba(255,255,255,0.05);
+    padding: 1.5rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
   }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all duration-150 active:scale-95;
+    background-color: #FFB020;
+    color: #0B0F14;
+  }
+  .btn-primary:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 20px rgba(255,176,32,0.35);
+  }
+
+  .btn-fault {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white font-semibold transition-all duration-150 active:scale-95;
+    background-color: #E8432E;
+  }
+  .btn-fault:hover { filter: brightness(1.1); }
 
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-secondary/10 text-secondary font-semibold transition-all duration-200 hover:bg-secondary/20 active:scale-95;
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all duration-150 active:scale-95;
+    background-color: rgba(71,85,105,0.1);
+    color: #475569;
   }
+  .btn-secondary:hover { background-color: rgba(71,85,105,0.2); }
 
   .btn-outline {
-    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-primary text-primary font-semibold transition-all duration-200 hover:bg-primary hover:text-white active:scale-95;
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border font-semibold text-slate-700 transition-all duration-150 active:scale-95;
+    border-color: #E2E8F0;
+  }
+  .btn-outline:hover {
+    border-color: #FFB020;
+    color: #FFB020;
   }
 
+  /* input-field — plain CSS for focus ring to avoid @apply /opacity issues */
   .input-field {
-    @apply w-full px-4 py-2.5 rounded-xl border border-border bg-white text-slate-800 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200;
+    @apply w-full px-4 py-2.5 rounded-xl border bg-white text-slate-800 transition-all duration-150;
+    border-color: #E2E8F0;
+    color: #94A3B8;
+  }
+  .input-field::placeholder { color: #94A3B8; }
+  .input-field:focus {
+    outline: none;
+    border-color: #FFB020;
+    box-shadow: 0 0 0 3px rgba(255,176,32,0.2);
   }
 
   .badge {
-    @apply inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold;
+    @apply inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-semibold;
   }
 
+  /* Mono data label — for timestamps, coordinates, stat numbers */
+  .data-mono {
+    @apply font-mono text-sm tabular-nums;
+  }
+
+  /* nav-link — plain CSS for dark-bg opacity variants */
   .nav-link {
-    @apply relative px-3 py-2 rounded-lg text-slate-600 font-medium transition-all duration-200 hover:text-primary hover:bg-primary/5;
+    @apply relative px-3 py-2 rounded-lg font-medium transition-all duration-150;
+    color: rgba(248,250,252,0.7);
+  }
+  .nav-link:hover {
+    color: #F8FAFC;
+    background-color: rgba(255,255,255,0.05);
   }
 
   .nav-link.active {
-    @apply text-primary bg-primary/10;
+    color: #FFB020;
   }
 }
+
 
 /* ─── Leaflet Fix ─── */
 .leaflet-container {
@@ -104,11 +154,91 @@
 
 /* ─── Grid Patterns ─── */
 .grid-bg {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-image: radial-gradient(rgba(255, 176, 32, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
 }
 
 .grid-bg-light {
   background-image: radial-gradient(rgba(148, 163, 184, 0.12) 1px, transparent 1px);
   background-size: 24px 24px;
+}
+
+/* ─── Circuit Trace Divider ─── */
+/* Use as a section separator — draws a right-angle PCB-trace shape */
+.circuit-divider {
+  position: relative;
+  height: 1px;
+  background: transparent;
+  margin: 0;
+}
+
+.circuit-divider::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #1E293B 30%, #1E293B 70%, transparent);
+}
+
+.circuit-divider::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 40%;
+  height: 1px;
+  background: linear-gradient(270deg, transparent, #1E293B 30%, #1E293B 70%, transparent);
+}
+
+/* ─── Brownout Flicker Animation (for NEW badge) ─── */
+@keyframes flicker {
+  0%, 100% { opacity: 1;    filter: brightness(1);    }
+  10%       { opacity: 0.6; filter: brightness(0.5);  }
+  12%       { opacity: 1;   filter: brightness(1.4);  }
+  20%       { opacity: 0.7; filter: brightness(0.6);  }
+  22%       { opacity: 1;   filter: brightness(1.2);  }
+  50%       { opacity: 1;   filter: brightness(1);    }
+  60%       { opacity: 0.5; filter: brightness(0.4);  }
+  62%       { opacity: 1;   filter: brightness(1.5);  }
+  80%       { opacity: 0.8; filter: brightness(0.7);  }
+  82%       { opacity: 1;   filter: brightness(1.1);  }
+}
+
+.animate-flicker {
+  animation: flicker 2.4s infinite;
+}
+
+/* ─── Voltage Waveform SVG path ─── */
+.waveform-path {
+  stroke-dasharray: 1400;
+  stroke-dashoffset: 1400;
+  animation: waveformDraw 2s ease-out forwards;
+}
+
+.waveform-path-idle {
+  animation: waveformDraw 2s ease-out forwards,
+             waveformIdleY 6s 2s ease-in-out infinite;
+}
+
+@keyframes waveformDraw {
+  from { stroke-dashoffset: 1400; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes waveformIdleY {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-3px); }
+}
+
+/* ─── Ongoing badge ring pulse ─── */
+.badge-ongoing-ring {
+  animation: ongoingPulse 1.8s ease-out infinite;
+}
+
+@keyframes ongoingPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(232, 67, 46, 0.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(232, 67, 46, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(232, 67, 46, 0); }
 }

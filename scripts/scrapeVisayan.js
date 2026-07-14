@@ -64,6 +64,19 @@ function cleanBarangayName(name) {
 }
 
 /**
+ * Custom overrides for Metro Cebu landmarks that Nominatim struggles to geocode.
+ */
+const CEBU_LANDMARK_OVERRIDES = {
+  "south reclamation area": { lat: 10.2675, lng: 123.8820 },
+  "srp": { lat: 10.2675, lng: 123.8820 },
+  "north reclamation area": { lat: 10.3120, lng: 123.9240 },
+  "nra": { lat: 10.3120, lng: 123.9240 },
+  "cebu i.t. park": { lat: 10.3292, lng: 123.9061 },
+  "cebu it park": { lat: 10.3292, lng: 123.9061 },
+  "cebu business park": { lat: 10.3175, lng: 123.9078 },
+};
+
+/**
  * Geocode a location using OpenStreetMap Nominatim
  */
 async function geocodeLocation(barangay, municipality, province) {
@@ -71,6 +84,13 @@ async function geocodeLocation(barangay, municipality, province) {
     const clean = cleanBarangayName(barangay);
     if (!clean || clean.toLowerCase() === "unknown" || clean.toLowerCase() === "portion") {
       return null;
+    }
+    
+    // Check custom landmark overrides first
+    const lowerClean = clean.toLowerCase();
+    if (CEBU_LANDMARK_OVERRIDES[lowerClean]) {
+      console.log(`🎯 Preset coordinate override matched for "${clean}".`);
+      return CEBU_LANDMARK_OVERRIDES[lowerClean];
     }
     
     // Search by Barangay + Cebu province directly (letting Nominatim resolve the correct town/city)
@@ -341,14 +361,17 @@ async function scrapeVisayanElectric() {
           });
           console.log(`✅ Saved new Cebu report for ${report.barangay}, ${report.municipality} (ID: ${docRef.id})`);
         } else {
-          // Update the existing document to enrich it with mapImageUrl and sourceUrl if they were missing
+          // Update the existing document to enrich it with geocoded coordinates, notes, mapImageUrl, and sourceUrl
           const existingDoc = existingDocs.docs[0];
           await updateDoc(existingDoc.ref, {
+            latitude: report.latitude,
+            longitude: report.longitude,
+            notes: report.notes,
             mapImageUrl: report.mapImageUrl,
             sourceUrl: report.sourceUrl,
             updatedAt: new Date().toISOString(),
           });
-          console.log(`🔄 Updated existing report for ${report.barangay}, ${report.municipality} with map image & source (ID: ${existingDoc.id})`);
+          console.log(`🔄 Updated existing report for ${report.barangay}, ${report.municipality} with new geocoded coords, map image & source (ID: ${existingDoc.id})`);
         }
       }
     } else {

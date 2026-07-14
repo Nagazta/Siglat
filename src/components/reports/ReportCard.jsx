@@ -3,25 +3,53 @@ import { MapPin, Clock, ArrowRight, FileText } from "lucide-react";
 import Card from "../common/Card";
 import Badge from "../common/Badge";
 import ConfirmButton from "./ConfirmButton";
-import { formatDate, timeAgo, truncate } from "../../utils";
+import { formatDate, timeAgo, truncate, isNew } from "../../utils";
 
 /**
  * Full report card for the Reports listing page.
+ * - Left border accent colored by report status
+ * - Timestamps in monospace font (meter readout feel)
+ * - NEW badge with brownout flicker on entries < 24h old
+ *
  * @param {Object}   report   - The report data object
  * @param {Function} onUpdate - Called when confirmation counts change
  */
 export default function ReportCard({ report, onUpdate }) {
+  const accentColor =
+    report.status === "ongoing"   ? "#E8432E"
+    : report.status === "restored" ? "#2DD4BF"
+    : "#FFB020";
+
   return (
-    <Card className="flex flex-col gap-4 h-full">
+    <div
+      className="bg-white rounded-2xl border border-circuit-light shadow-card flex flex-col gap-4 p-6 h-full
+                 border-l-2 transition-all duration-150 hover:shadow-lg hover:-translate-y-0.5"
+      style={{ borderLeftColor: accentColor }}
+    >
       {/* ── Header: status + time ── */}
       <div className="flex items-start justify-between gap-2">
-        <Badge status={report.status} />
-        <span className="text-xs text-muted flex-shrink-0">{timeAgo(report.createdAt)}</span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge status={report.status} />
+          {isNew(report.createdAt) && (
+            <span
+              className="animate-flicker inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-black tracking-widest uppercase"
+              style={{
+                background: "linear-gradient(90deg, #78350f 0%, #92400e 50%, #78350f 100%)",
+                color: "#fde68a",
+                border: "1px solid #fbbf24",
+                boxShadow: "0 0 6px #fbbf2466, 0 0 14px #f59e0b33",
+              }}
+            >
+              ⚡ NEW
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-muted flex-shrink-0 font-mono">{timeAgo(report.createdAt)}</span>
       </div>
 
       {/* ── Location ── */}
       <div className="flex items-start gap-2">
-        <MapPin size={15} className="text-primary mt-0.5 flex-shrink-0" />
+        <MapPin size={15} className="mt-0.5 flex-shrink-0" style={{ color: accentColor }} />
         <div>
           <p className="font-bold text-slate-800 leading-snug">{report.barangay}</p>
           <p className="text-sm text-muted">
@@ -32,7 +60,7 @@ export default function ReportCard({ report, onUpdate }) {
 
       {/* ── Reason pill ── */}
       {report.reason && (
-        <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-1.5">
+        <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-circuit-light rounded-lg px-3 py-1.5">
           <FileText size={12} className="flex-shrink-0" />
           <span className="truncate">{report.reason}</span>
         </div>
@@ -45,14 +73,14 @@ export default function ReportCard({ report, onUpdate }) {
         </p>
       )}
 
-      {/* ── Start time ── */}
-      <div className="flex items-center gap-1.5 text-xs text-muted">
+      {/* ── Start time — mono readout ── */}
+      <div className="flex items-center gap-1.5 text-xs text-muted font-mono">
         <Clock size={12} />
         <span>Started {formatDate(report.startTime)}</span>
       </div>
 
       {/* ── Footer: confirm + detail link ── */}
-      <div className="flex items-center justify-between pt-3 border-t border-border gap-2 flex-wrap">
+      <div className="flex items-center justify-between pt-3 border-t border-circuit-light gap-2 flex-wrap">
         <ConfirmButton
           reportId={report.id}
           confirmations={report.confirmations}
@@ -65,19 +93,19 @@ export default function ReportCard({ report, onUpdate }) {
               href={report.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline flex-shrink-0"
+              className="text-xs font-semibold text-live-amber hover:brightness-110 hover:underline flex-shrink-0"
             >
               Official Advisory ↗
             </a>
           )}
           <Link
             to={`/reports/${report.id}`}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline flex-shrink-0"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-live-amber hover:underline flex-shrink-0"
           >
             View Details <ArrowRight size={12} />
           </Link>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
