@@ -6,6 +6,10 @@ import dotenv from "dotenv";
 // Load environment variables from .env file
 dotenv.config();
 
+// ── CLI flags ────────────────────────────────────────────────────────────────
+const DRY_RUN = process.argv.includes("--dry-run");
+if (DRY_RUN) console.log("[Config] Dry-run mode — no DB writes.\n");
+
 // Firebase config template using local .env variables
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY,
@@ -18,11 +22,12 @@ const firebaseConfig = {
 
 // Initialize Firebase if credentials exist
 let db = null;
-if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+if (!DRY_RUN && firebaseConfig.apiKey && firebaseConfig.projectId) {
   const app = initializeApp(firebaseConfig);
   db = getFirestore(app);
-} else {
-  console.warn("⚠️ Firebase configuration missing in environment. Scraper will log advisories to console instead of saving to Firestore.");
+  console.log("[Firebase] Connected to Firestore.");
+} else if (!DRY_RUN) {
+  console.warn("[Firebase] Missing credentials — output will be logged to console.");
 }
 
 /**
@@ -341,10 +346,19 @@ async function scrapeVisayanElectric() {
 
     console.log(`\n🔍 Total unique outages extracted: ${allReports.length}`);
 
+    // Dry-run: just print output without saving
+    if (DRY_RUN || !db) {
+      console.log("\n[Dry-run] Scraped output:");
+      console.log(JSON.stringify(allReports, null, 2));
+      return;
+    }
+
     // Save to Firestore if database is configured
     if (db && allReports.length > 0) {
       console.log(`💾 Saving reports to Firestore database...`);
       const reportsCollection = collection(db, "reports");
+      let saved = 0;
+      let dupes = 0;
 
       for (const report of allReports) {
         // Check for duplicates by Barangay and Municipality in database
@@ -359,23 +373,24 @@ async function scrapeVisayanElectric() {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           });
-          console.log(`✅ Saved new Cebu report for ${report.barangay}, ${report.municipality} (ID: ${docRef.id})`);
+          console.log(`  [Saved]   ${report.barangay}, ${report.municipality} (ID: ${docRef.id})`);
+          saved++;
         } else {
-          // Update the existing document to enrich it with geocoded coordinates, notes, mapImageUrl, and sourceUrl
+          // Update existing document with latest geocoords, notes, map image
           const existingDoc = existingDocs.docs[0];
           await updateDoc(existingDoc.ref, {
-            latitude: report.latitude,
-            longitude: report.longitude,
-            notes: report.notes,
+            latitude:    report.latitude,
+            longitude:   report.longitude,
+            notes:       report.notes,
             mapImageUrl: report.mapImageUrl,
-            sourceUrl: report.sourceUrl,
-            updatedAt: new Date().toISOString(),
+            sourceUrl:   report.sourceUrl,
+            updatedAt:   new Date().toISOString(),
           });
-          console.log(`🔄 Updated existing report for ${report.barangay}, ${report.municipality} with new geocoded coords, map image & source (ID: ${existingDoc.id})`);
+          console.log(`  [Updated] ${report.barangay}, ${report.municipality} (ID: ${existingDoc.id})`);
+          dupes++;
         }
       }
-    } else {
-      console.log("\n📝 Scraped Data Output:", JSON.stringify(allReports, null, 2));
+      console.log(`\n[Done] Saved: ${saved}  |  Updated: ${dupes}`);
     }
 
   } catch (error) {

@@ -12,27 +12,21 @@ export default function ReportTimeline({ report }) {
       icon: Zap,
       label: "Report Submitted",
       time: report.createdAt,
-      color: "text-primary",
-      bg: "bg-primary/10",
-      line: "bg-primary/20",
+      color: "#FFB020",
     },
     {
       id: "started",
       icon: Clock,
       label: "Outage Started",
       time: report.startTime,
-      color: "text-danger",
-      bg: "bg-danger/10",
-      line: "bg-danger/20",
+      color: "#E8432E",
     },
     report.estimatedEnd && {
       id: "estimated",
       icon: RefreshCw,
       label: "Estimated Restoration",
       time: report.estimatedEnd,
-      color: "text-warning",
-      bg: "bg-warning/10",
-      line: "bg-warning/20",
+      color: "#FFB020",
       isEstimate: true,
     },
     report.status === "restored" && {
@@ -40,9 +34,7 @@ export default function ReportTimeline({ report }) {
       icon: CheckCircle,
       label: "Power Restored",
       time: report.updatedAt,
-      color: "text-success",
-      bg: "bg-success/10",
-      line: null,
+      color: "#2DD4BF",
     },
   ].filter(Boolean);
 
@@ -55,11 +47,17 @@ export default function ReportTimeline({ report }) {
           <div key={event.id} className="flex gap-3">
             {/* Icon + connector line */}
             <div className="flex flex-col items-center">
-              <div className={`flex-shrink-0 w-8 h-8 rounded-full ${event.bg} flex items-center justify-center`}>
-                <Icon size={15} className={event.color} />
+              <div
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: `${event.color}20` }}
+              >
+                <Icon size={14} style={{ color: event.color }} />
               </div>
               {!isLast && (
-                <div className={`w-0.5 flex-1 my-1 ${event.line || "bg-slate-200"}`} />
+                <div
+                  className="w-0.5 flex-1 my-1"
+                  style={{ background: `${event.color}30` }}
+                />
               )}
             </div>
 
@@ -71,7 +69,7 @@ export default function ReportTimeline({ report }) {
                   <span className="ml-1.5 text-xs font-normal text-muted">(estimated)</span>
                 )}
               </p>
-              <p className="text-xs text-muted mt-0.5">{formatDate(event.time)}</p>
+              <p className="text-xs text-muted mt-0.5 font-mono">{formatDate(event.time)}</p>
             </div>
           </div>
         );

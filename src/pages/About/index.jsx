@@ -1,4 +1,4 @@
-import { Info, ExternalLink, Heart, Zap, Map, BarChart2, Shield, Globe, Github } from "lucide-react";
+import { Info, ExternalLink, Heart, Zap, Map, BarChart2, Shield, Globe } from "lucide-react";
 
 const FEATURES = [
   {
