@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import Card from "../../components/common/Card";
 import Badge from "../../components/common/Badge";
+import SourceTag from "../../components/common/SourceTag";
 import AnimatedCounter from "../../components/common/AnimatedCounter";
 import { MOCK_STATS, MOCK_REPORTS } from "../../data/mockData";
 import { useReports } from "../../hooks/useReports";
@@ -358,6 +359,7 @@ export default function Home() {
                       ⚡ NEW
                     </span>
                   )}
+                  <SourceTag sourceUrl={report.sourceUrl} />
                 </div>
                 <span className="text-xs text-muted font-mono flex-shrink-0">
                   {timeAgo(report.createdAt)}

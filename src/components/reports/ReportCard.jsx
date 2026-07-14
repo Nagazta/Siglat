@@ -3,6 +3,7 @@ import { MapPin, Clock, ArrowRight, FileText } from "lucide-react";
 import Card from "../common/Card";
 import Badge from "../common/Badge";
 import ConfirmButton from "./ConfirmButton";
+import SourceTag from "../common/SourceTag";
 import { formatDate, timeAgo, truncate, isNew } from "../../utils";
 
 /**
@@ -43,6 +44,7 @@ export default function ReportCard({ report, onUpdate }) {
               ⚡ NEW
             </span>
           )}
+          <SourceTag sourceUrl={report.sourceUrl} />
         </div>
         <span className="text-xs text-muted flex-shrink-0 font-mono">{timeAgo(report.createdAt)}</span>
       </div>

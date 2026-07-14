@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { MapPin, Clock, ThumbsUp, ArrowRight, ExternalLink } from "lucide-react";
 import Badge from "../common/Badge";
+import SourceTag from "../common/SourceTag";
 import { formatDate, timeAgo } from "../../utils";
 
 /**
@@ -19,7 +20,10 @@ export default function ReportPopup({ report }) {
     <div className="font-sans min-w-[210px]" style={{ color: "#1E293B" }}>
       {/* Status + time */}
       <div className="flex items-center justify-between gap-2 mb-2.5">
-        <Badge status={report.status} size="sm" />
+        <div className="flex items-center gap-1.5">
+          <Badge status={report.status} size="sm" />
+          <SourceTag sourceUrl={report.sourceUrl} />
+        </div>
         <span className="text-[10px] font-mono" style={{ color: "#94A3B8" }}>
           {timeAgo(report.createdAt)}
         </span>

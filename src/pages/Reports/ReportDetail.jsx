@@ -4,6 +4,7 @@ import { ArrowLeft, MapPin, Clock, FileText, AlertTriangle, Edit, CheckCircle2 }
 import { MapContainer as LeafletMap, TileLayer, CircleMarker, Popup, useMapEvents } from "react-leaflet";
 import Card from "../../components/common/Card";
 import Badge from "../../components/common/Badge";
+import SourceTag from "../../components/common/SourceTag";
 import ReportTimeline from "../../components/reports/ReportTimeline";
 import ConfirmButton from "../../components/reports/ConfirmButton";
 import Loading from "../../components/common/Loading";
@@ -109,11 +110,14 @@ export default function ReportDetail() {
   return (
     <div className="animate-fade-in">
       {/* ── Header ── */}
-      <div className="bg-white border-b border-border">
+      <div className="bg-grid-ink border-b border-white/5">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <button
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors mb-4"
+            className="inline-flex items-center gap-1.5 text-sm transition-colors mb-4"
+            style={{ color: "rgba(248,250,252,0.6)" }}
+            onMouseEnter={(e) => e.currentTarget.style.color = "#FFB020"}
+            onMouseLeave={(e) => e.currentTarget.style.color = "rgba(248,250,252,0.6)"}
           >
             <ArrowLeft size={15} />
             Back
@@ -123,9 +127,10 @@ export default function ReportDetail() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Badge status={report.status} />
+                <SourceTag sourceUrl={report.sourceUrl} />
               </div>
-              <h1 className="text-2xl font-bold text-slate-800">{report.barangay}</h1>
-              <p className="text-muted flex items-center gap-1.5 mt-1">
+              <h1 className="text-2xl font-bold" style={{ color: "#F8FAFC" }}>{report.barangay}</h1>
+              <p className="flex items-center gap-1.5 mt-1" style={{ color: "rgba(248,250,252,0.6)" }}>
                 <MapPin size={14} />
                 {report.municipality}, {report.province}
               </p>

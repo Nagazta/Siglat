@@ -3,6 +3,7 @@ import { Search, SlidersHorizontal, X, MapPin, AlertTriangle, ThumbsUp, Zap } fr
 import { Link } from "react-router-dom";
 import MapContainer from "../../components/map/MapContainer";
 import Badge from "../../components/common/Badge";
+import SourceTag from "../../components/common/SourceTag";
 import Loading from "../../components/common/Loading";
 import { useReports } from "../../hooks/useReports";
 import { useMap } from "../../hooks/useMap";
@@ -164,7 +165,10 @@ export default function LiveMap() {
                           }}
                         >
                           <div className="flex items-start justify-between gap-2 mb-1">
-                            <Badge status={report.status} size="sm" />
+                            <div className="flex items-center gap-1">
+                              <Badge status={report.status} size="sm" />
+                              <SourceTag sourceUrl={report.sourceUrl} />
+                            </div>
                             <span className="text-[10px] text-muted font-mono flex-shrink-0">
                               {timeAgo(report.createdAt)}
                             </span>
