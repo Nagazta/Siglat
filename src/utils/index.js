@@ -39,30 +39,30 @@ export function timeAgo(dateStr) {
 export const STATUS_CONFIG = {
   [STATUS.ONGOING]: {
     label: "Ongoing",
-    color: "text-danger",
-    bg: "bg-danger/10",
-    markerColor: "#EF4444",
-    dot: "bg-danger",
+    color: "text-fault-red",
+    bg: "bg-fault-red/10",
+    markerColor: "#E8432E",
+    dot: "bg-fault-red",
   },
   [STATUS.SCHEDULED]: {
     label: "Scheduled",
-    color: "text-warning",
-    bg: "bg-warning/10",
-    markerColor: "#FACC15",
-    dot: "bg-warning",
+    color: "text-live-amber",
+    bg: "bg-live-amber/10",
+    markerColor: "#FFB020",
+    dot: "bg-live-amber",
   },
   [STATUS.RESTORED]: {
     label: "Restored",
-    color: "text-success",
-    bg: "bg-success/10",
-    markerColor: "#22C55E",
-    dot: "bg-success",
+    color: "text-restored-cyan",
+    bg: "bg-restored-cyan/10",
+    markerColor: "#2DD4BF",
+    dot: "bg-restored-cyan",
   },
   [STATUS.UNKNOWN]: {
     label: "Unknown",
     color: "text-muted",
     bg: "bg-slate-100",
-    markerColor: "#94A3B8",
+    markerColor: "#475569",
     dot: "bg-muted",
   },
 };
@@ -73,6 +73,16 @@ export const STATUS_CONFIG = {
  */
 export function getStatusConfig(status) {
   return STATUS_CONFIG[status] || STATUS_CONFIG[STATUS.UNKNOWN];
+}
+
+/**
+ * Returns true if the given timestamp is within the last 24 hours.
+ * @param {string} dateStr
+ * @returns {boolean}
+ */
+export function isNew(dateStr) {
+  if (!dateStr) return false;
+  return Date.now() - new Date(dateStr).getTime() < 24 * 60 * 60 * 1000;
 }
 
 /**
