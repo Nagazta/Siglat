@@ -276,7 +276,33 @@ async function scrapeFacebookPage(pageSlug) {
         const imgEl = el.querySelector('img[src*="fbcdn"]');
         const imgUrl = imgEl ? imgEl.src : null;
 
-        return { text: (text || "").trim(), imgUrl };
+        // Extract the specific post permalink URL
+        // Facebook post links contain /posts/, /permalink/, or /photos/ in the href
+        let postUrl = null;
+        const allLinks = Array.from(el.querySelectorAll('a[href]'));
+        for (const link of allLinks) {
+          const href = link.href;
+          if (
+            href.includes('/posts/') ||
+            href.includes('/permalink/') ||
+            href.includes('/photos/') ||
+            href.includes('/story.php')
+          ) {
+            postUrl = href;
+            break;
+          }
+        }
+        // Fallback: look for timestamp links which are typically post permalinks
+        if (!postUrl) {
+          const timestampLink = el.querySelector('a[href*="facebook.com"][role="link"] span[id]')?.closest('a') ||
+                                el.querySelector('a[href*="facebook.com/photo"]') ||
+                                el.querySelector('span[id] a[href*="facebook.com"]');
+          if (timestampLink) {
+            postUrl = timestampLink.href;
+          }
+        }
+
+        return { text: (text || "").trim(), imgUrl, postUrl };
       }).filter((p) => p.text.length > 50);
     });
 
@@ -296,7 +322,7 @@ async function scrapeFacebookPage(pageSlug) {
     console.log(`[Scraper] Identified ${outagePosts.length} outage-related posts.`);
 
     const reports = [];
-    for (const { text, imgUrl } of outagePosts) {
+    for (const { text, imgUrl, postUrl } of outagePosts) {
       console.log(`\n--- Parsing Outage Post ---`);
       console.log(text.slice(0, 150) + "...");
 
@@ -320,6 +346,14 @@ async function scrapeFacebookPage(pageSlug) {
       const fallback = VECO_MUNICIPALITIES[parsed.municipality.toLowerCase()] || { lat: 10.3157, lng: 123.8854 };
       const coords   = geo ?? fallback;
 
+      // Use the specific post permalink, fallback to page URL
+      const resolvedSourceUrl = postUrl || `https://www.facebook.com/${pageSlug}`;
+      if (postUrl) {
+        console.log(`[Link] Post permalink: ${postUrl}`);
+      } else {
+        console.log(`[Link] No post permalink found, using page URL as fallback.`);
+      }
+
       reports.push({
         province:     parsed.province,
         municipality: parsed.municipality,
@@ -331,7 +365,7 @@ async function scrapeFacebookPage(pageSlug) {
         estimatedEnd: parsed.estimatedEnd,
         reason:       parsed.reason,
         notes:        `[Facebook Update] ${parsed.notes}`,
-        sourceUrl:    `https://www.facebook.com/${pageSlug}`,
+        sourceUrl:    resolvedSourceUrl,
         mapImageUrl:  imgUrl && !imgUrl.includes("emoji.php") ? imgUrl : null,
         photoUrl:     null,
         confirmations:  0,

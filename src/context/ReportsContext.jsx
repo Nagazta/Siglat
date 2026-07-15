@@ -58,6 +58,11 @@ export function ReportsProvider({ children }) {
     );
   }, []);
 
+  // Optimistic local remove
+  const removeReport = useCallback((id) => {
+    setReports((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
   const value = {
     reports,
     loading,
@@ -65,6 +70,7 @@ export function ReportsProvider({ children }) {
     isUsingFallback,
     addReport,
     updateReport,
+    removeReport,
   };
 
   return (
