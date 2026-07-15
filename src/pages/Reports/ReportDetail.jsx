@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Clock, FileText, AlertTriangle, Edit, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, FileText, AlertTriangle, Edit, CheckCircle2, Trash2 } from "lucide-react";
 import { MapContainer as LeafletMap, TileLayer, CircleMarker, Popup, useMapEvents } from "react-leaflet";
 import Card from "../../components/common/Card";
 import Badge from "../../components/common/Badge";
@@ -10,7 +10,7 @@ import ConfirmButton from "../../components/reports/ConfirmButton";
 import Loading from "../../components/common/Loading";
 import { useReports } from "../../hooks/useReports";
 import { formatDate, getStatusConfig } from "../../utils";
-import { updateReportLocation } from "../../services/firebase/firestore";
+import { updateReportLocation, deleteReport } from "../../services/firebase/firestore";
 
 function MapEvents({ onClick }) {
   useMapEvents({
@@ -22,7 +22,7 @@ function MapEvents({ onClick }) {
 export default function ReportDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { reports, loading, updateReport } = useReports();
+  const { reports, loading, updateReport, removeReport } = useReports();
 
   const [isEditingLocation, setIsEditingLocation] = useState(false);
   const [tempCoords, setTempCoords] = useState(null);
@@ -30,6 +30,11 @@ export default function ReportDetail() {
   const [showPasscodeModal, setShowPasscodeModal] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Delete state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePasscode, setDeletePasscode] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const triggerToast = (type, message) => {
     setToast({ type, message });
@@ -82,6 +87,31 @@ export default function ReportDetail() {
 
   const handleConfirmUpdate = (updated) => {
     updateReport(id, updated);
+  };
+
+  const handleConfirmDelete = async () => {
+    const expectedPasscode = import.meta.env.VITE_ADMIN_PASSCODE || "admin123";
+    if (deletePasscode !== expectedPasscode) {
+      triggerToast("error", "Access Denied: Incorrect admin passcode!");
+      setShowDeleteModal(false);
+      setDeletePasscode("");
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await deleteReport(id);
+      removeReport(id);
+      triggerToast("success", "Report deleted successfully.");
+      navigate("/reports");
+    } catch (err) {
+      console.error(err);
+      triggerToast("error", "System Error: Failed to delete report.");
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+      setDeletePasscode("");
+    }
   };
 
   if (loading) return <Loading size="page" message="Loading report..." />;
@@ -328,16 +358,27 @@ export default function ReportDetail() {
                   },
                   report.sourceUrl ? {
                     label: "Source Reference",
-                    value: (
-                      <a
-                        href={report.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline font-semibold"
-                      >
-                        Visayan Electric Advisory ↗
-                      </a>
-                    ),
+                    value: (() => {
+                      const url = report.sourceUrl.toLowerCase();
+                      let linkText = "View Source ↗";
+                      if (url.includes("facebook.com")) {
+                        linkText = url.includes("/posts/") || url.includes("/permalink/") || url.includes("/photos/") || url.includes("/story.php")
+                          ? "View Facebook Post ↗"
+                          : "Visayan Electric (Facebook) ↗";
+                      } else if (url.includes("visayanelectric.com") || url.includes("veco")) {
+                        linkText = "Visayan Electric Advisory ↗";
+                      }
+                      return (
+                        <a
+                          href={report.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline font-semibold"
+                        >
+                          {linkText}
+                        </a>
+                      );
+                    })(),
                   } : null,
                 ].filter(Boolean).map(({ label, value }) => (
                   <div key={label}>
@@ -418,6 +459,17 @@ export default function ReportDetail() {
               <ArrowLeft size={14} />
               All Reports
             </Link>
+
+            {/* Admin: Delete Report */}
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                         border-2 border-rose-200 text-rose-500 text-sm font-semibold
+                         hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-all duration-200 w-full"
+            >
+              <Trash2 size={14} />
+              Delete Report
+            </button>
           </div>
         </div>
       </div>
@@ -460,6 +512,53 @@ export default function ReportDetail() {
                 className="px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary-dark disabled:opacity-50 rounded-xl transition-all"
               >
                 {savingLocation ? "Saving..." : "Verify & Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-sm w-full p-6 animate-scale-in">
+            <h3 className="font-bold text-slate-800 text-lg mb-2 flex items-center gap-2">
+              <Trash2 size={18} className="text-rose-500" />
+              Delete Report
+            </h3>
+            <p className="text-sm text-slate-500 mb-1 leading-relaxed">
+              This will <span className="font-bold text-rose-600">permanently delete</span> this outage report. This action cannot be undone.
+            </p>
+            <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+              Enter the Admin Passcode to confirm deletion:
+            </p>
+            <input
+              type="password"
+              placeholder="Admin Passcode"
+              value={deletePasscode}
+              onChange={(e) => setDeletePasscode(e.target.value)}
+              className="w-full px-3 py-2.5 border border-slate-200 focus:border-rose-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-100 mb-4 transition-all"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && deletePasscode) handleConfirmDelete();
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeletePasscode("");
+                }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={!deletePasscode || deleting}
+                className="px-4 py-2 text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-50 rounded-xl transition-all"
+              >
+                {deleting ? "Deleting..." : "Delete Permanently"}
               </button>
             </div>
           </div>

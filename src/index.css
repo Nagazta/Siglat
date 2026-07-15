@@ -132,6 +132,7 @@
 .leaflet-container {
   font-family: "Inter", sans-serif !important;
   border-radius: 1rem;
+  z-index: 0;
 }
 
 /* ─── Scrollbar ─── */

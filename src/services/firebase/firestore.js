@@ -6,6 +6,7 @@ import {
   addDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   orderBy,
   query,
   onSnapshot,
@@ -138,3 +139,11 @@ export async function updateReportLocation(reportId, latitude, longitude) {
   });
 }
 
+/**
+ * Permanently delete a report from Firestore.
+ * @param {string} reportId
+ */
+export async function deleteReport(reportId) {
+  const ref = doc(db, REPORTS_COLLECTION, reportId);
+  await deleteDoc(ref);
+}
