@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { NavLink, Link } from "react-router-dom";
-import { Zap, Menu, X, AlertTriangle } from "lucide-react";
+import { Zap, Menu, X, AlertTriangle, Bell } from "lucide-react";
 import clsx from "clsx";
+import SubscribeModal from "../common/SubscribeModal";
 
 const NAV_LINKS = [
   { to: "/", label: "Home" },
@@ -20,6 +21,7 @@ const NAV_LINKS = [
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -30,6 +32,7 @@ export default function Navbar() {
   const closeMobile = () => setMobileOpen(false);
 
   return (
+    <>
     <header
       className={clsx(
         "sticky top-0 z-40 bg-grid-ink/95 backdrop-blur-md border-b transition-all duration-150",
@@ -88,6 +91,16 @@ export default function Navbar() {
 
           {/* ── Desktop CTA ── */}
           <div className="hidden md:flex items-center gap-3">
+            <button
+              onClick={() => setShowSubscribeModal(true)}
+              className="p-2 rounded-xl text-spark-white/60 hover:text-live-amber hover:bg-white/5
+                         transition-all duration-150 relative group"
+              title="SMS Outage Alerts"
+            >
+              <Bell size={18} />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-live-amber rounded-full
+                              border-2 border-grid-ink animate-pulse" />
+            </button>
             <Link
               to="/reports?action=new"
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-fault-red text-white text-sm font-semibold
@@ -131,7 +144,16 @@ export default function Navbar() {
                   {label}
                 </NavLink>
               ))}
-              <div className="pt-3 border-t border-white/5 mt-2">
+              <div className="pt-3 border-t border-white/5 mt-2 flex flex-col gap-2">
+                <button
+                  onClick={() => { closeMobile(); setShowSubscribeModal(true); }}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl
+                             border border-live-amber/30 text-live-amber
+                             text-sm font-semibold transition-all duration-150 hover:bg-live-amber/10"
+                >
+                  <Bell size={14} />
+                  SMS Outage Alerts
+                </button>
                 <Link
                   to="/reports?action=new"
                   onClick={closeMobile}
@@ -147,5 +169,11 @@ export default function Navbar() {
         )}
       </nav>
     </header>
+
+    <SubscribeModal
+      isOpen={showSubscribeModal}
+      onClose={() => setShowSubscribeModal(false)}
+    />
+    </>
   );
 }

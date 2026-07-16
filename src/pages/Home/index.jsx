@@ -1,9 +1,10 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Map, AlertTriangle, Activity, Users, FileText, HelpCircle,
-  ArrowRight, CheckCircle, Zap, Radio, ShieldCheck,
+  ArrowRight, CheckCircle, Zap, Radio, ShieldCheck, Bell, Smartphone,
 } from "lucide-react";
+import SubscribeModal from "../../components/common/SubscribeModal";
 import Card from "../../components/common/Card";
 import Badge from "../../components/common/Badge";
 import SourceTag from "../../components/common/SourceTag";
@@ -176,6 +177,7 @@ const FAQS = [
 /* ─── Main Component ────────────────────────────────────────────────────── */
 export default function Home() {
   const { reports } = useReports();
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
 
   const activeCount     = reports.filter((r) => r.status === "ongoing").length;
   const todayCount      = reports.filter((r) => {
@@ -313,6 +315,52 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── SMS Alerts Banner ── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div
+          className="relative overflow-hidden rounded-2xl p-6 sm:p-8"
+          style={{
+            background: "linear-gradient(135deg, #1E293B 0%, #0F172A 50%, #1E293B 100%)",
+            border: "1px solid rgba(255,176,32,0.15)",
+          }}
+        >
+          {/* Ambient glow */}
+          <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full blur-3xl pointer-events-none"
+               style={{ background: "rgba(255,176,32,0.08)" }} />
+          <div className="absolute -bottom-10 -left-10 w-40 h-40 rounded-full blur-3xl pointer-events-none"
+               style={{ background: "rgba(255,176,32,0.05)" }} />
+
+          <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-5">
+            <div
+              className="flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: "rgba(255,176,32,0.12)" }}
+            >
+              <Smartphone size={26} style={{ color: "#FFB020" }} />
+            </div>
+
+            <div className="flex-1">
+              <h3 className="text-lg font-bold mb-1" style={{ color: "#F8FAFC" }}>
+                Get SMS Brownout Alerts
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: "rgba(248,250,252,0.6)" }}>
+                Subscribe with your phone number and we'll text you whenever there's a reported outage near your location.
+                Powered by httpSMS — no app download needed.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setShowSubscribeModal(true)}
+              className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm
+                         transition-all duration-150 hover:brightness-110 active:scale-95 whitespace-nowrap"
+              style={{ background: "#FFB020", color: "#0B0F14" }}
+            >
+              <Bell size={16} />
+              Subscribe Now
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ── Latest Reports ── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="flex items-center justify-between mb-6">
@@ -441,6 +489,11 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <SubscribeModal
+        isOpen={showSubscribeModal}
+        onClose={() => setShowSubscribeModal(false)}
+      />
     </div>
   );
 }

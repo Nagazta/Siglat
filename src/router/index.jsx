@@ -10,6 +10,7 @@ const Reports = lazy(() => import("../pages/Reports"));
 const ReportDetail = lazy(() => import("../pages/Reports/ReportDetail"));
 const Statistics = lazy(() => import("../pages/Statistics"));
 const About = lazy(() => import("../pages/About"));
+const Unsubscribe = lazy(() => import("../pages/Unsubscribe"));
 const NotFound = lazy(() => import("../pages/NotFound"));
 
 const router = createBrowserRouter([
@@ -40,6 +41,10 @@ const router = createBrowserRouter([
       {
         path: "about",
         element: <PageWrapper><About /></PageWrapper>,
+      },
+      {
+        path: "unsubscribe",
+        element: <PageWrapper><Unsubscribe /></PageWrapper>,
       },
       {
         path: "*",

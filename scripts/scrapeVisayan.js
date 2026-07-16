@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, updateDoc, getDocs, query, where } from "firebase/firestore";
 import dotenv from "dotenv";
+import { notifyNearbySubscribers } from "./lib/httpSmsService.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -374,6 +375,8 @@ async function scrapeVisayanElectric() {
             updatedAt: new Date().toISOString(),
           });
           console.log(`  [Saved]   ${report.barangay}, ${report.municipality} (ID: ${docRef.id})`);
+          report._firestoreId = docRef.id;
+          report._isNew = true;
           saved++;
         } else {
           // Update existing document with latest geocoords, notes, map image
@@ -391,6 +394,26 @@ async function scrapeVisayanElectric() {
         }
       }
       console.log(`\n[Done] Saved: ${saved}  |  Updated: ${dupes}`);
+
+      // ── SMS Notifications ───────────────────────────────────────────────────
+      const newReports = allReports.filter((r) => r._isNew);
+      if (newReports.length > 0) {
+        console.log(`\n[httpSMS] Sending alerts for ${newReports.length} new report(s)...`);
+        try {
+          const subsSnapshot = await getDocs(collection(db, "subscribers"));
+          const subscribers = subsSnapshot.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((s) => s.active !== false);
+
+          console.log(`[httpSMS] Found ${subscribers.length} active subscriber(s).`);
+
+          for (const report of newReports) {
+            await notifyNearbySubscribers(report, subscribers);
+          }
+        } catch (smsErr) {
+          console.error("[httpSMS] Notification error:", smsErr.message);
+        }
+      }
     }
 
   } catch (error) {
