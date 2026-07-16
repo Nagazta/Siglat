@@ -14,8 +14,8 @@ const HTTPSMS_API_URL = "https://api.httpsms.com/v1/messages/send";
 export default function TestSmsModal({ isOpen, onClose }) {
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState(
-    "⚡ SIGLAT PH — SMS Health Check\n\n✅ Your httpSMS integration is working!\nThis is a test message from the Siglat PH outage tracker.\n\nTimestamp: " +
-      new Date().toLocaleString("en-PH")
+    "Siglat PH Test: Your httpSMS integration is working. This is a plain text verification message. Time: " +
+      new Date().toLocaleTimeString("en-PH")
   );
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
@@ -25,8 +25,8 @@ export default function TestSmsModal({ isOpen, onClose }) {
   const resetState = () => {
     setPhone("");
     setMessage(
-      "⚡ SIGLAT PH — SMS Health Check\n\n✅ Your httpSMS integration is working!\nThis is a test message from the Siglat PH outage tracker.\n\nTimestamp: " +
-        new Date().toLocaleString("en-PH")
+      "Siglat PH Test: Your httpSMS integration is working. This is a plain text verification message. Time: " +
+        new Date().toLocaleTimeString("en-PH")
     );
     setSending(false);
     setResult(null);

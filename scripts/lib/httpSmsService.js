@@ -96,15 +96,14 @@ function formatShortDate(isoString) {
  */
 export function buildAlertMessage(report) {
   const lines = [
-    `⚡ SIGLAT PH ALERT`,
-    `Outage reported near your area!`,
-    `📍 ${report.barangay}, ${report.municipality}`,
-    `🔧 ${report.reason || "Power interruption"}`,
-    `⏰ Started: ${formatShortDate(report.startTime)}`,
+    `SIGLAT PH ALERT: Outage reported in your area.`,
+    `Location: ${report.barangay}, ${report.municipality}`,
+    `Reason: ${report.reason || "Power interruption"}`,
+    `Started: ${formatShortDate(report.startTime)}`,
   ];
 
   if (report.estimatedEnd) {
-    lines.push(`🔄 Est. Restore: ${formatShortDate(report.estimatedEnd)}`);
+    lines.push(`Est. Restoration: ${formatShortDate(report.estimatedEnd)}`);
   }
 
   lines.push(``, `Reply STOP to unsubscribe.`);
