@@ -43,6 +43,8 @@ export async function fetchReportById(id) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
+import { notifyNearbySubscribersClient } from "../sms";
+
 /**
  * Add a new report to Firestore.
  * @param {Object} reportData
@@ -60,9 +62,17 @@ export async function addReport(reportData) {
   // Client-side auto-generated ID to prevent pending promise hangs
   const docRef = doc(reportsRef());
   
-  setDoc(docRef, payload).catch((err) => {
-    console.error("Firestore write failed:", err);
-  });
+  setDoc(docRef, payload)
+    .then(() => {
+      // Trigger SMS notifications for nearby subscribers
+      const finalReport = { id: docRef.id, ...payload };
+      notifyNearbySubscribersClient(finalReport).catch((err) => {
+        console.error("Subscriber notification failed:", err);
+      });
+    })
+    .catch((err) => {
+      console.error("Firestore write failed:", err);
+    });
   
   return { 
     id: docRef.id, 

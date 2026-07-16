@@ -8,6 +8,7 @@ import Loading from "../../components/common/Loading";
 import ReportCard from "../../components/reports/ReportCard";
 import ReportForm from "../../components/reports/ReportForm";
 import { useReports } from "../../hooks/useReports";
+import SyncPanel from "../../components/reports/SyncPanel";
 
 const PAGE_SIZE = 6;
 
@@ -255,6 +256,8 @@ export default function Reports() {
 
       {/* ── Report Grid ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <SyncPanel />
+
         {loading ? (
           <Loading size="page" message="Reading grid data..." />
         ) : processedReports.length === 0 ? (

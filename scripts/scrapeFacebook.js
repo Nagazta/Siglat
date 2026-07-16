@@ -13,6 +13,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, getDocs, query, where } from "firebase/firestore";
 import { createWorker } from "tesseract.js";
 import dotenv from "dotenv";
+import { notifyNearbySubscribers } from "./lib/httpSmsService.js";
 
 dotenv.config();
 
@@ -143,11 +144,217 @@ function parseOCRText(ocrText, original) {
   return { municipality, province, barangay };
 }
 
+// ── Helper to normalize mathematical alphanumeric Unicode symbols ───────────
+function cleanStyledText(text) {
+  return text.normalize("NFKD");
+}
+
+// ── Helper to split multi-schedule/weekly advisory posts ────────────────────
+function splitMultiSchedulePost(text) {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  const dateHeaderRegex = /^\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:-\d{1,2})?,\s*\d{4}/i;
+  
+  const blocks = [];
+  let currentDateHeader = "";
+  let currentBlock = null;
+  let currentState = "";
+
+  for (const line of lines) {
+    const cleanLine = line.replace(/[\u2300-\u23FF\u2600-\u27BF]/g, "").trim(); // strip clock/emoji characters
+    
+    if (dateHeaderRegex.test(cleanLine)) {
+      currentDateHeader = cleanLine;
+      continue;
+    }
+
+    if (/^Time\s*:/i.test(cleanLine)) {
+      if (currentBlock) {
+        blocks.push(currentBlock);
+      }
+      currentBlock = {
+        date: currentDateHeader,
+        time: cleanLine.replace(/^Time\s*:\s*/i, "").trim(),
+        purpose: "",
+        areas: "",
+        map: "",
+      };
+      currentState = "time";
+      continue;
+    }
+
+    if (currentBlock) {
+      if (/^Purpose\s*:/i.test(cleanLine)) {
+        currentState = "purpose";
+        currentBlock.purpose = cleanLine.replace(/^Purpose\s*:\s*/i, "").trim();
+      } else if (/^Areas\s+Affected\s*:/i.test(cleanLine)) {
+        currentState = "areas";
+        currentBlock.areas = cleanLine.replace(/^Areas\s+Affected\s*:\s*/i, "").trim();
+      } else if (/^View\s+the\s+map\s+here\s*:/i.test(cleanLine) || /https?:\/\/tinyurl\.com/i.test(cleanLine)) {
+        currentState = "map";
+        currentBlock.map = cleanLine.replace(/^View\s+the\s+map\s+here\s*:\s*/i, "").trim();
+      } else {
+        if (currentState === "purpose") {
+          currentBlock.purpose += " " + cleanLine;
+        } else if (currentState === "areas") {
+          currentBlock.areas += " " + cleanLine;
+        } else if (currentState === "map") {
+          currentBlock.map += " " + cleanLine;
+        }
+      }
+    }
+  }
+
+  if (currentBlock) {
+    blocks.push(currentBlock);
+  }
+
+  return blocks;
+}
+
+// ── Helper to extract locations from a schedule block ────────────────────────
+function extractLocations(block) {
+  const textForMunicipality = `${block.areas} ${block.purpose}`.toLowerCase();
+  let municipality = "Cebu City";
+  let province = "Cebu";
+
+  for (const [key, val] of Object.entries(VECO_MUNICIPALITIES)) {
+    if (textForMunicipality.includes(key)) {
+      municipality = key.replace(/(^\w|\s\w)/g, (c) => c.toUpperCase());
+      province = val.province;
+      break;
+    }
+  }
+
+  const barangays = [];
+  
+  // 1. Try to extract from serving Brgy in purpose
+  const purposeMatch = block.purpose.match(/serving Brgy\.?\s+([^]+?)(?=by|facilitating|for|\.|$)/i);
+  if (purposeMatch && purposeMatch[1]) {
+    const rawBrgys = purposeMatch[1].split(/,|\s+and\s+|\s*&\s*/i);
+    for (const b of rawBrgys) {
+      const cleanB = b.trim();
+      if (cleanB.length > 2) {
+        barangays.push(cleanB);
+      }
+    }
+  }
+
+  // 2. Fallback to areas description
+  if (barangays.length === 0) {
+    const brgyPatterns = [
+      /(?:portion of|portions of)\s+([A-Za-z\s0-9\-&()]+?)(?=along|serving|affecting|,|\.|$)/i,
+      /(?:brgy\.?|barangay)\s+([A-Za-z\s0-9\-&()]+?)(?=,|\.|\s+in\s|$)/i,
+    ];
+
+    for (const pat of brgyPatterns) {
+      const m = block.areas.match(pat);
+      if (m && m[1]) {
+        const rawBrgys = m[1].split(/,|\s+and\s+|\s*&\s*/i);
+        for (const b of rawBrgys) {
+          const cleanB = b.trim();
+          if (cleanB.length > 2) {
+            barangays.push(cleanB);
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  if (barangays.length === 0) {
+    barangays.push("Unknown Barangay");
+  }
+
+  return { municipality, province, barangays };
+}
+
+// ── Helper to parse start & end times from a block ───────────────────────────
+function parseBlockDateTime(dateStr, timeStr) {
+  let startTime = new Date().toISOString();
+  let estimatedEnd = new Date(Date.now() + 4 * 3600000).toISOString();
+
+  try {
+    const complexRangeMatch = timeStr.match(/(\d{1,2}:\d{2}\s*[AP]M)\s+of\s+([A-Za-z]+)\s+(\d{1,2})\s+to\s+(\d{1,2}:\d{2}\s*[AP]M)\s+of\s+([A-Za-z]+)\s+(\d{1,2})/i);
+    const yearMatch = dateStr.match(/,?\s*(\d{4})/);
+    const year = yearMatch ? yearMatch[1] : new Date().getFullYear();
+
+    if (complexRangeMatch) {
+      const startT = complexRangeMatch[1];
+      const startMonth = complexRangeMatch[2];
+      const startDay = complexRangeMatch[3];
+      const endT = complexRangeMatch[4];
+      const endMonth = complexRangeMatch[5];
+      const endDay = complexRangeMatch[6];
+
+      startTime = new Date(`${startMonth} ${startDay}, ${year} ${startT}`).toISOString();
+      estimatedEnd = new Date(`${endMonth} ${endDay}, ${year} ${endT}`).toISOString();
+    } else {
+      const timeRange = timeStr.match(/(\d{1,2}:\d{2}\s*[AP]M)\s*to\s*(\d{1,2}:\d{2}\s*[AP]M)/i);
+      const singleDateMatch = dateStr.match(/([A-Za-z]+)\s+(\d{1,2})(?:-\d{1,2})?,\s*(\d{4})/);
+      
+      if (singleDateMatch) {
+        const month = singleDateMatch[1];
+        const day = singleDateMatch[2];
+        const yr = singleDateMatch[3];
+        
+        if (timeRange) {
+          startTime = new Date(`${month} ${day}, ${yr} ${timeRange[1]}`).toISOString();
+          estimatedEnd = new Date(`${month} ${day}, ${yr} ${timeRange[2]}`).toISOString();
+        } else {
+          startTime = new Date(`${month} ${day}, ${yr} 08:00 AM`).toISOString();
+          estimatedEnd = new Date(`${month} ${day}, ${yr} 05:00 PM`).toISOString();
+        }
+      }
+    }
+  } catch (_) {}
+
+  return { startTime, estimatedEnd };
+}
+
 // ── Post text parser ──────────────────────────────────────────────────────────
 function parseAdvisoryText(rawText) {
-  const text = rawText.replace(/\s+/g, " ").trim();
+  const text = cleanStyledText(rawText);
   const lower = text.toLowerCase();
 
+  // Determine if it is a multi-schedule post
+  const timeOccurrences = (text.match(/Time\s*:/ig) || []).length;
+  const purposeOccurrences = (text.match(/Purpose\s*:/ig) || []).length;
+
+  if (timeOccurrences > 1 || purposeOccurrences > 1) {
+    console.log(`[Parser] Detected multi-schedule weekly advisory post (${timeOccurrences} time blocks). Splitting...`);
+    const blocks = splitMultiSchedulePost(text);
+    const subReports = [];
+
+    for (const block of blocks) {
+      const { municipality, province, barangays } = extractLocations(block);
+      const { startTime, estimatedEnd } = parseBlockDateTime(block.date, block.time);
+
+      let reason = "Line maintenance";
+      const purposeLower = block.purpose.toLowerCase();
+      if (purposeLower.includes("transformer")) reason = "Transformer maintenance";
+      else if (purposeLower.includes("upgrade") || purposeLower.includes("capacity")) reason = "System upgrade";
+      else if (purposeLower.includes("typhoon") || purposeLower.includes("bagyo")) reason = "Typhoon damage";
+      else if (purposeLower.includes("emergency") || purposeLower.includes("tripped")) reason = "Emergency line fault";
+
+      for (const barangay of barangays) {
+        subReports.push({
+          status: "scheduled",
+          startTime,
+          estimatedEnd,
+          municipality,
+          province,
+          barangay,
+          reason,
+          notes: `Purpose: ${block.purpose}\nAreas Affected: ${block.areas}`,
+          isMultiSchedule: true,
+          blockMapUrl: block.map || null,
+        });
+      }
+    }
+    return subReports;
+  }
+
+  // Fallback for single-advisory posts
   let status = "scheduled";
   if (lower.includes("restored") || lower.includes("power is back") || lower.includes("energized")) {
     status = "restored";
@@ -175,7 +382,6 @@ function parseAdvisoryText(rawText) {
     } catch (_) {}
   }
 
-  // Check extensions: e.g., "extended until 10:00 PM"
   const extensionMatch = text.match(/extended until\s*(\d{1,2}:\d{2}\s*[AP]M)/i) ||
                          text.match(/extended until\s*(\d{1,2}\s*[AP]M)/i);
   if (extensionMatch && dateMatch) {
@@ -219,8 +425,9 @@ function parseAdvisoryText(rawText) {
 
   const notes = text.slice(0, 700);
 
-  return { status, startTime, estimatedEnd, municipality, province, barangay, reason, notes };
+  return { status, startTime, estimatedEnd, municipality, province, barangay, reason, notes, isMultiSchedule: false };
 }
+
 
 // ── Main scraper ──────────────────────────────────────────────────────────────
 async function scrapeFacebookPage(pageSlug) {
@@ -326,53 +533,56 @@ async function scrapeFacebookPage(pageSlug) {
       console.log(`\n--- Parsing Outage Post ---`);
       console.log(text.slice(0, 150) + "...");
 
-      let parsed = parseAdvisoryText(text);
+      let parsedResult = parseAdvisoryText(text);
+      let parsedReports = Array.isArray(parsedResult) ? parsedResult : [parsedResult];
 
-      // Perform OCR if there is an advisory image attached to the post
-      if (imgUrl && !imgUrl.includes("emoji.php")) {
-        const ocrText = await performOCR(imgUrl);
-        if (ocrText) {
-          const resolvedLocation = parseOCRText(ocrText, parsed);
-          parsed.barangay     = resolvedLocation.barangay;
-          parsed.municipality = resolvedLocation.municipality;
-          parsed.province     = resolvedLocation.province;
-          console.log(`[OCR Match] Extracted: ${parsed.barangay}, ${parsed.municipality}`);
+      for (const parsed of parsedReports) {
+        // Perform OCR if there is an advisory image attached and NOT a multi-schedule text-heavy post
+        if (imgUrl && !imgUrl.includes("emoji.php") && !parsed.isMultiSchedule) {
+          const ocrText = await performOCR(imgUrl);
+          if (ocrText) {
+            const resolvedLocation = parseOCRText(ocrText, parsed);
+            parsed.barangay     = resolvedLocation.barangay;
+            parsed.municipality = resolvedLocation.municipality;
+            parsed.province     = resolvedLocation.province;
+            console.log(`[OCR Match] Extracted: ${parsed.barangay}, ${parsed.municipality}`);
+          }
         }
+
+        // Geocode locations
+        await sleep(1100);
+        const geo = await geocode(parsed.barangay, parsed.municipality);
+        const fallback = VECO_MUNICIPALITIES[parsed.municipality.toLowerCase()] || { lat: 10.3157, lng: 123.8854 };
+        const coords   = geo ?? fallback;
+
+        // Use specific tinyurl map if available, otherwise post permalink
+        const resolvedSourceUrl = parsed.blockMapUrl || postUrl || `https://www.facebook.com/${pageSlug}`;
+        if (parsed.blockMapUrl) {
+          console.log(`[Link] Using block map URL: ${parsed.blockMapUrl}`);
+        } else if (postUrl) {
+          console.log(`[Link] Post permalink: ${postUrl}`);
+        }
+
+        reports.push({
+          province:     parsed.province,
+          municipality: parsed.municipality,
+          barangay:     parsed.barangay,
+          latitude:     coords.lat,
+          longitude:    coords.lng,
+          status:       parsed.status,
+          startTime:    parsed.startTime,
+          estimatedEnd: parsed.estimatedEnd,
+          reason:       parsed.reason,
+          notes:        `[Facebook Update] ${parsed.notes}`,
+          sourceUrl:    resolvedSourceUrl,
+          mapImageUrl:  imgUrl && !imgUrl.includes("emoji.php") ? imgUrl : null,
+          photoUrl:     null,
+          confirmations:  0,
+          restoredVotes:  0,
+          createdAt:    new Date().toISOString(),
+          updatedAt:    new Date().toISOString(),
+        });
       }
-
-      // Geocode locations
-      await sleep(1100);
-      const geo = await geocode(parsed.barangay, parsed.municipality);
-      const fallback = VECO_MUNICIPALITIES[parsed.municipality.toLowerCase()] || { lat: 10.3157, lng: 123.8854 };
-      const coords   = geo ?? fallback;
-
-      // Use the specific post permalink, fallback to page URL
-      const resolvedSourceUrl = postUrl || `https://www.facebook.com/${pageSlug}`;
-      if (postUrl) {
-        console.log(`[Link] Post permalink: ${postUrl}`);
-      } else {
-        console.log(`[Link] No post permalink found, using page URL as fallback.`);
-      }
-
-      reports.push({
-        province:     parsed.province,
-        municipality: parsed.municipality,
-        barangay:     parsed.barangay,
-        latitude:     coords.lat,
-        longitude:    coords.lng,
-        status:       parsed.status,
-        startTime:    parsed.startTime,
-        estimatedEnd: parsed.estimatedEnd,
-        reason:       parsed.reason,
-        notes:        `[Facebook Update] ${parsed.notes}`,
-        sourceUrl:    resolvedSourceUrl,
-        mapImageUrl:  imgUrl && !imgUrl.includes("emoji.php") ? imgUrl : null,
-        photoUrl:     null,
-        confirmations:  0,
-        restoredVotes:  0,
-        createdAt:    new Date().toISOString(),
-        updatedAt:    new Date().toISOString(),
-      });
     }
 
     console.log(`\n[Scraper] Compiled ${reports.length} structured reports.`);
@@ -400,6 +610,8 @@ async function scrapeFacebookPage(pageSlug) {
       if (existing.empty) {
         const ref = await addDoc(col, report);
         console.log(`  [Saved]   ${report.barangay}, ${report.municipality} (${ref.id})`);
+        report._firestoreId = ref.id;
+        report._isNew = true;
         saved++;
       } else {
         console.log(`  [Skip]    ${report.barangay}, ${report.municipality} — already exists`);
@@ -408,6 +620,27 @@ async function scrapeFacebookPage(pageSlug) {
     }
 
     console.log(`\n[Done] Saved: ${saved}  |  Skipped (duplicates): ${dupes}`);
+
+    // ── SMS Notifications ─────────────────────────────────────────────────
+    const newReports = reports.filter((r) => r._isNew);
+    if (newReports.length > 0) {
+      console.log(`\n[httpSMS] Sending alerts for ${newReports.length} new report(s)...`);
+      try {
+        // Fetch all subscribers from Firestore
+        const subsSnapshot = await getDocs(collection(db, "subscribers"));
+        const subscribers = subsSnapshot.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((s) => s.active !== false);
+
+        console.log(`[httpSMS] Found ${subscribers.length} active subscriber(s).`);
+
+        for (const report of newReports) {
+          await notifyNearbySubscribers(report, subscribers);
+        }
+      } catch (smsErr) {
+        console.error("[httpSMS] Notification error:", smsErr.message);
+      }
+    }
 
   } catch (err) {
     console.error("[Error]", err.message);
