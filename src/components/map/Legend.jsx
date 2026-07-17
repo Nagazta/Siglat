@@ -46,7 +46,7 @@ const LEGEND_ITEMS = [
 export default function Legend() {
   return (
     <div
-      className="absolute bottom-10 right-3 md:bottom-6 z-[1000] backdrop-blur-md rounded-xl px-2.5 py-2 md:p-3 max-w-[calc(100vw-24px)]"
+      className="absolute top-3 right-3 md:top-4 md:right-4 z-[1000] backdrop-blur-md rounded-xl px-2.5 py-2 md:p-3 max-w-[calc(100vw-24px)]"
       style={{
         background: "rgba(11,15,20,0.88)",
         border: "1px solid rgba(255,255,255,0.08)",
