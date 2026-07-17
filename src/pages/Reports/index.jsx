@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import {
   Zap, Plus, Filter, ArrowUpDown, CheckCircle2,
-  Search, ChevronLeft, ChevronRight, X, Lock, LogOut, Check, Trash2, Key
+  Search, ChevronLeft, ChevronRight, X, Lock, LogOut, Check, Trash2, Key, AlertTriangle
 } from "lucide-react";
 import Modal from "../../components/common/Modal";
 import Loading from "../../components/common/Loading";
@@ -36,6 +36,9 @@ export default function Reports() {
   // Admin state
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
+  
+  // Pending queue pagination state
+  const [pendingPage, setPendingPage] = useState(1);
 
   // Login form state
   const [email, setEmail] = useState("");
@@ -73,26 +76,63 @@ export default function Reports() {
     }
   };
 
-  const handleApprove = async (reportId, reportedStatus) => {
+  // Moderation modal states
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [moderationType, setModerationType] = useState(null); // 'approve' | 'reject'
+  
+  // Moderation form fields
+  const [modStatus, setModStatus] = useState("ongoing");
+  const [modReason, setModReason] = useState("");
+  const [modEstEnd, setModEstEnd] = useState("");
+  const [modNotes, setModNotes] = useState("");
+
+  const openApproveModal = (report) => {
+    setSelectedReport(report);
+    setModerationType("approve");
+    setModStatus(report.reportedStatus || "ongoing");
+    setModReason(report.reason || "");
+    setModEstEnd(report.estimatedEnd || "");
+    setModNotes(report.notes || "");
+  };
+
+  const openRejectModal = (report) => {
+    setSelectedReport(report);
+    setModerationType("reject");
+  };
+
+  const handleApproveConfirm = async () => {
+    if (!selectedReport) return;
     try {
-      const docRef = doc(db, "reports", reportId);
+      const docRef = doc(db, "reports", selectedReport.id);
       await updateDoc(docRef, {
-        status: reportedStatus || "ongoing",
+        status: modStatus,
+        reason: modReason,
+        estimatedEnd: modEstEnd || null,
+        notes: modNotes,
         updatedAt: new Date().toISOString(),
       });
-      updateReport(reportId, { status: reportedStatus || "ongoing" });
+      updateReport(selectedReport.id, {
+        status: modStatus,
+        reason: modReason,
+        estimatedEnd: modEstEnd || null,
+        notes: modNotes,
+      });
+      setSelectedReport(null);
+      setModerationType(null);
     } catch (err) {
       console.error("Failed to approve report:", err);
       alert("Verification Failed: " + err.message);
     }
   };
 
-  const handleReject = async (reportId) => {
-    if (!confirm("Are you sure you want to reject and delete this report?")) return;
+  const handleRejectConfirm = async () => {
+    if (!selectedReport) return;
     try {
-      const docRef = doc(db, "reports", reportId);
+      const docRef = doc(db, "reports", selectedReport.id);
       await deleteDoc(docRef);
-      removeReport(reportId);
+      removeReport(selectedReport.id);
+      setSelectedReport(null);
+      setModerationType(null);
     } catch (err) {
       console.error("Failed to delete report:", err);
       alert("Rejection Failed: " + err.message);
@@ -109,6 +149,14 @@ export default function Reports() {
   
   // Pending reports list
   const pendingReports = useMemo(() => reports.filter((r) => r.status === "pending"), [reports]);
+
+  const PENDING_PAGE_SIZE = 6;
+  const totalPendingPages = Math.max(1, Math.ceil(pendingReports.length / PENDING_PAGE_SIZE));
+  const safePendingPage = Math.min(pendingPage, totalPendingPages);
+  const pendingStart = (safePendingPage - 1) * PENDING_PAGE_SIZE;
+  const pagePendingReports = useMemo(() => {
+    return pendingReports.slice(pendingStart, pendingStart + PENDING_PAGE_SIZE);
+  }, [pendingReports, pendingStart]);
 
   /* ── Unique location groups for the dropdown ── */
   const locationOptions = useMemo(() => {
@@ -403,17 +451,23 @@ export default function Reports() {
           ) : (
             /* Moderation Dashboard */
             <div className="flex flex-col gap-6">
-              <div className="flex items-center justify-between p-4 bg-slate-800/40 border border-white/5 rounded-2xl">
-                <div>
-                  <p className="text-xs text-spark-white/60">Signed in as administrator:</p>
-                  <p className="text-sm font-bold text-spark-white">{adminUser.email}</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gradient-to-r from-slate-900 via-grid-ink to-slate-900 border border-white/10 rounded-2xl shadow-lg gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-3.5 w-3.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                  </span>
+                  <div>
+                    <p className="text-[10px] text-spark-white/40 font-mono uppercase tracking-wider">System Auditing Session Active</p>
+                    <p className="text-sm font-bold text-spark-white mt-0.5">{adminUser.email}</p>
+                  </div>
                 </div>
                 <button
                   onClick={handleSignOut}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-white/10 text-spark-white/70 hover:text-white hover:bg-white/5 transition-all"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/5 border border-white/10 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/20 active:scale-95 transition-all"
                 >
                   <LogOut size={13} />
-                  Sign Out
+                  Sign Out Session
                 </button>
               </div>
 
@@ -424,75 +478,134 @@ export default function Reports() {
                 </p>
 
                 {pendingReports.length === 0 ? (
-                  <div className="text-center py-16 bg-[#1E293B]/30 border border-white/5 rounded-2xl">
-                    <CheckCircle2 size={32} className="mx-auto mb-2 text-emerald-400 opacity-60" />
-                    <p className="font-semibold text-spark-white">All caught up!</p>
-                    <p className="text-xs text-spark-white/50 mt-0.5 font-mono">No reports currently waiting for review.</p>
+                  <div className="text-center py-20 bg-gradient-to-r from-slate-900 via-grid-ink to-slate-900 border border-white/10 rounded-2xl shadow-lg flex flex-col items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mb-4">
+                      <CheckCircle2 size={24} className="text-emerald-400" />
+                    </div>
+                    <p className="text-base font-bold text-spark-white">Outage Queue Clear</p>
+                    <p className="text-xs text-spark-white/50 mt-1 font-mono max-w-xs">No pending community reports require administrative review at this time.</p>
                   </div>
                 ) : (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {pendingReports.map((report) => (
-                      <div key={report.id} className="bg-[#1E293B] border border-white/5 rounded-2xl overflow-hidden shadow-md flex flex-col justify-between">
-                        {/* Header details */}
-                        <div className="p-4 flex flex-col gap-2">
-                          <div className="flex items-center justify-between">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-700 text-slate-300">
-                              PENDING
-                            </span>
-                            {report.reportedStatus && (
-                              <span className="text-[10px] text-spark-white/50 font-mono">
-                                Requested: {report.reportedStatus.toUpperCase()}
+                  <>
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {pagePendingReports.map((report) => (
+                        <div key={report.id} className="bg-[#1E293B] border border-white/5 rounded-2xl overflow-hidden shadow-md flex flex-col justify-between">
+                          {/* Header details */}
+                          <div className="p-4 flex flex-col gap-2">
+                            <div className="flex items-center justify-between">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-700 text-slate-300">
+                                PENDING
                               </span>
+                              {report.reportedStatus && (
+                                <span className="text-[10px] text-spark-white/50 font-mono">
+                                  Requested: {report.reportedStatus.toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+
+                            <h3 className="font-bold text-base text-spark-white leading-tight mt-1">
+                              {report.barangay}
+                            </h3>
+                            <p className="text-xs text-spark-white/60">
+                              {report.municipality}, {report.province}
+                            </p>
+
+                            {report.reason && (
+                              <p className="text-xs mt-1 text-spark-white/80 font-medium">
+                                Reason: <span className="font-normal text-spark-white/60">{report.reason}</span>
+                              </p>
+                            )}
+
+                            {report.notes && (
+                              <p className="text-xs bg-[#0B0F14]/40 p-2.5 rounded-lg border border-white/5 text-spark-white/60 italic leading-relaxed mt-2">
+                                "{report.notes}"
+                              </p>
+                            )}
+
+                            {report.photoUrl && (
+                              <div className="mt-2 rounded-lg overflow-hidden border border-white/5 max-h-36">
+                                <img src={report.photoUrl} alt="Attached outage proof" className="w-full h-full object-cover" />
+                              </div>
                             )}
                           </div>
 
-                          <h3 className="font-bold text-base text-spark-white leading-tight mt-1">
-                            {report.barangay}
-                          </h3>
-                          <p className="text-xs text-spark-white/60">
-                            {report.municipality}, {report.province}
-                          </p>
-
-                          {report.reason && (
-                            <p className="text-xs mt-1 text-spark-white/80 font-medium">
-                              Reason: <span className="font-normal text-spark-white/60">{report.reason}</span>
-                            </p>
-                          )}
-
-                          {report.notes && (
-                            <p className="text-xs bg-[#0B0F14]/40 p-2.5 rounded-lg border border-white/5 text-spark-white/60 italic leading-relaxed mt-2">
-                              "{report.notes}"
-                            </p>
-                          )}
-
-                          {report.photoUrl && (
-                            <div className="mt-2 rounded-lg overflow-hidden border border-white/5 max-h-36">
-                              <img src={report.photoUrl} alt="Attached outage proof" className="w-full h-full object-cover" />
-                            </div>
-                          )}
+                          {/* Moderation Controls */}
+                          <div className="p-3 bg-slate-800/30 border-t border-white/5 flex gap-2 mt-auto">
+                            <button
+                              onClick={() => openRejectModal(report)}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border border-rose-500/30 text-rose-400 bg-rose-500/5 hover:bg-rose-500/10 transition-colors"
+                            >
+                              <Trash2 size={13} />
+                              Reject
+                            </button>
+                            <button
+                              onClick={() => openApproveModal(report)}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500 text-grid-ink hover:brightness-105 transition-colors"
+                              style={{ backgroundColor: "#10B981", color: "#0B0F14" }}
+                            >
+                              <Check size={13} />
+                              Approve
+                            </button>
+                          </div>
                         </div>
+                      ))}
+                    </div>
 
-                        {/* Moderation Controls */}
-                        <div className="p-3 bg-slate-800/30 border-t border-white/5 flex gap-2 mt-auto">
+                    {/* ── Pending Pagination ── */}
+                    {totalPendingPages > 1 && (
+                      <div className="flex items-center justify-between mt-10 pt-6 border-t border-white/5">
+                        <p className="text-xs text-spark-white/60 font-mono hidden sm:block">
+                          Showing {pendingStart + 1}–{Math.min(pendingStart + PENDING_PAGE_SIZE, pendingReports.length)}{" "}
+                          of {pendingReports.length} pending
+                        </p>
+
+                        <div className="flex items-center gap-1 mx-auto sm:mx-0">
+                          {/* Prev */}
                           <button
-                            onClick={() => handleReject(report.id)}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border border-rose-500/30 text-rose-400 bg-rose-500/5 hover:bg-rose-500/10 transition-colors"
+                            onClick={() => setPendingPage((p) => Math.max(1, p - 1))}
+                            disabled={safePendingPage === 1}
+                            className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/10 text-spark-white/70 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 transition-all"
+                            aria-label="Previous page"
                           >
-                            <Trash2 size={13} />
-                            Reject
+                            <ChevronLeft size={16} />
                           </button>
+
+                          {/* Page numbers */}
+                          {Array.from({ length: totalPendingPages }, (_, idx) => idx + 1).map((p) => (
+                            <button
+                              key={p}
+                              onClick={() => setPendingPage(p)}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg text-xs font-semibold font-mono transition-all"
+                              style={
+                                p === safePendingPage
+                                  ? {
+                                      background: "#FFB020",
+                                      color: "#0B0F14",
+                                      fontWeight: 700,
+                                    }
+                                  : {
+                                      border: "1px solid rgba(255,255,255,0.1)",
+                                      color: "rgba(248,250,252,0.6)",
+                                    }
+                              }
+                            >
+                              {p}
+                            </button>
+                          ))}
+
+                          {/* Next */}
                           <button
-                            onClick={() => handleApprove(report.id, report.reportedStatus)}
-                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500 text-grid-ink hover:brightness-105 transition-colors"
-                            style={{ backgroundColor: "#10B981", color: "#0B0F14" }}
+                            onClick={() => setPendingPage((p) => Math.min(totalPendingPages, p + 1))}
+                            disabled={safePendingPage === totalPendingPages}
+                            className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/10 text-spark-white/70 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 transition-all"
+                            aria-label="Next page"
                           >
-                            <Check size={13} />
-                            Approve
+                            <ChevronRight size={16} />
                           </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -633,6 +746,130 @@ export default function Reports() {
           onSuccess={handleFormSuccess}
           onCancel={() => setFormOpen(false)}
         />
+      </Modal>
+
+      {/* ── Moderation Action Modal (Verify / Reject) ── */}
+      <Modal
+        isOpen={!!selectedReport}
+        onClose={() => { setSelectedReport(null); setModerationType(null); }}
+        title={moderationType === "approve" ? "Verify & Approve Report" : "Confirm Report Rejection"}
+        size="md"
+      >
+        {moderationType === "approve" ? (
+          <div className="flex flex-col gap-4">
+            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Target Location</h4>
+              <p className="text-sm font-bold text-slate-800 mt-0.5">{selectedReport?.barangay}</p>
+              <p className="text-xs text-slate-500">{selectedReport?.municipality}, {selectedReport?.province}</p>
+            </div>
+
+            <div className="flex flex-col gap-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Set Grid Status</label>
+                <select
+                  value={modStatus}
+                  onChange={(e) => setModStatus(e.target.value)}
+                  className="w-full text-sm font-medium border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-primary cursor-pointer text-slate-800"
+                >
+                  <option value="ongoing">⚡ Ongoing (Active Outage)</option>
+                  <option value="scheduled">📅 Scheduled (Maintenance)</option>
+                  <option value="restored">✅ Restored (Resolved)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Outage Reason</label>
+                <select
+                  value={modReason}
+                  onChange={(e) => setModReason(e.target.value)}
+                  className="w-full text-sm font-medium border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-primary cursor-pointer text-slate-800"
+                >
+                  <option value="">Choose a reason...</option>
+                  <option value="Transformer maintenance">Transformer maintenance</option>
+                  <option value="Line maintenance">Line maintenance</option>
+                  <option value="System upgrade">System upgrade</option>
+                  <option value="Typhoon damage">Typhoon damage</option>
+                  <option value="Equipment failure">Equipment failure</option>
+                  <option value="Unknown">Unknown</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Estimated Restoration <span className="text-muted font-normal text-[11px]">(optional)</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  value={modEstEnd}
+                  onChange={(e) => setModEstEnd(e.target.value)}
+                  className="w-full text-sm font-medium border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-primary text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Audit Notes <span className="text-muted font-normal text-[11px]">(optional)</span>
+                </label>
+                <textarea
+                  value={modNotes}
+                  onChange={(e) => setModNotes(e.target.value)}
+                  placeholder="Notes shown publicly on card details..."
+                  rows={2}
+                  className="w-full text-sm font-medium border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-primary resize-none text-slate-800"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => { setSelectedReport(null); setModerationType(null); }}
+                className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-50 text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApproveConfirm}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition-all"
+                style={{ backgroundColor: "#10B981" }}
+              >
+                Approve & Publish
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-800">
+              <AlertTriangle size={20} className="flex-shrink-0 mt-0.5 text-rose-600" />
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider">Warning</h4>
+                <p className="text-xs mt-0.5 leading-relaxed">
+                  You are rejecting and deleting the community report for <strong>{selectedReport?.barangay}</strong>. This will permanently remove it from the system. This action is irreversible.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => { setSelectedReport(null); setModerationType(null); }}
+                className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-50 text-xs font-bold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectConfirm}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all"
+                style={{ backgroundColor: "#E11D48" }}
+              >
+                Reject & Delete
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
