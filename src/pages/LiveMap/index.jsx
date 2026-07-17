@@ -11,14 +11,15 @@ import { timeAgo } from "../../utils";
 import { STATUS } from "../../data/mockData";
 
 const STATUS_FILTERS = [
-  { value: "all",             label: "All" },
+  { value: "active",         label: "Active" },
   { value: STATUS.ONGOING,   label: "Ongoing" },
   { value: STATUS.SCHEDULED, label: "Scheduled" },
-  { value: STATUS.RESTORED,  label: "Restored" },
+  { value: STATUS.RESTORED,  label: "Complete" },
+  { value: "all",            label: "All" },
 ];
 
 const filterActiveStyle = (value) => {
-  if (value === "all")       return "bg-grid-ink text-spark-white";
+  if (value === "all" || value === "active") return "bg-grid-ink text-spark-white";
   if (value === "ongoing")   return "bg-fault-red text-white";
   if (value === "scheduled") return "bg-live-amber text-grid-ink";
   if (value === "restored")  return "bg-restored-cyan text-grid-ink";
@@ -30,13 +31,21 @@ export default function LiveMap() {
   const { flyTo, flyToLocation } = useMap();
 
   const [search,       setSearch]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
   const [selectedId,   setSelectedId]   = useState(null);
 
   const filteredReports = useMemo(() => {
     return reports.filter((r) => {
-      const matchesStatus = statusFilter === "all" || r.status === statusFilter;
+      let matchesStatus = false;
+      if (statusFilter === "all") {
+        matchesStatus = true;
+      } else if (statusFilter === "active") {
+        matchesStatus = r.status === STATUS.ONGOING || r.status === STATUS.SCHEDULED;
+      } else {
+        matchesStatus = r.status === statusFilter;
+      }
+
       const q = search.toLowerCase();
       const matchesSearch =
         !q ||
