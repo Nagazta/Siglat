@@ -85,6 +85,39 @@ export default function SyncPanel() {
     }
   };
 
+  const isDev = import.meta.env.DEV;
+
+  if (!isDev) {
+    return (
+      <div className="bg-[#1E293B] border border-white/5 rounded-2xl p-5 mb-6 shadow-md">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-spark-white flex items-center gap-2">
+              <RefreshCw size={18} className="text-live-amber animate-pulse" />
+              Automated Data Synchronization
+            </h2>
+            <p className="text-xs text-spark-white/60 mt-1">
+              Outage records are automatically fetched and updated every 6 hours.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Active (GitHub Actions)
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 p-4 bg-slate-800/30 border border-white/5 rounded-xl text-xs text-spark-white/70 leading-relaxed">
+          <p>
+            To run a manual synchronization immediately, navigate to the **Actions** tab on your GitHub repository, select the **Scheduled Outage Scrapers** workflow, and click **Run workflow**. This prevents browser performance overhead and rate limits on the hosting platform.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#1E293B] border border-white/5 rounded-2xl p-5 mb-6 shadow-md">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

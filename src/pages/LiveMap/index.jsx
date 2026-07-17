@@ -51,6 +51,9 @@ export default function LiveMap() {
   const handleSidebarClick = (report) => {
     setSelectedId(report.id);
     flyToLocation(report.latitude, report.longitude, 14);
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   };
 
   const accentFor = (status) =>
@@ -62,22 +65,22 @@ export default function LiveMap() {
       {/* ── Header — white ── */}
       <div className="bg-white border-b border-border flex-shrink-0">
         <div className="max-w-full px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <h1 className="font-bold text-slate-800 flex items-center gap-2 text-lg">
-            <Zap size={18} className="text-live-amber" />
+          <h1 className="font-bold text-slate-800 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-lg">
+            <Zap size={16} className="text-live-amber sm:w-[18px] sm:h-[18px]" />
             Live Outage Map
           </h1>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSidebarOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold
                          bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all duration-150"
             >
               <SlidersHorizontal size={13} />
-              {sidebarOpen ? "Hide" : "Show"} Sidebar
+              <span>{sidebarOpen ? "Hide" : "Show"}<span className="hidden sm:inline"> Sidebar</span></span>
             </button>
             <Link
               to="/reports?action=new"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 sm:px-3 sm:py-2 rounded-lg text-xs font-semibold
                          bg-fault-red text-white hover:brightness-110 transition-all duration-150 active:scale-95"
             >
               <AlertTriangle size={13} />
@@ -88,11 +91,23 @@ export default function LiveMap() {
       </div>
 
       {/* ── Main: sidebar + map ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
 
         {/* ── Sidebar — white ── */}
         {sidebarOpen && (
-          <aside className="w-72 flex-shrink-0 bg-white border-r border-border flex flex-col overflow-hidden">
+          <aside className="absolute md:relative inset-y-0 left-0 w-80 max-w-[calc(100vw-48px)] flex-shrink-0 bg-white border-r border-border flex flex-col overflow-hidden z-[1001] shadow-xl md:shadow-none">
+
+            {/* Mobile close header */}
+            <div className="flex md:hidden items-center justify-between px-4 py-3 border-b border-border bg-slate-50 flex-shrink-0">
+              <span className="font-semibold text-slate-700 text-xs">Outage Reports</span>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+                aria-label="Close sidebar"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
             {/* Search + filter */}
             <div className="p-3 border-b border-border flex flex-col gap-2">
@@ -201,7 +216,7 @@ export default function LiveMap() {
         )}
 
         {/* ── Map ── */}
-        <div className="flex-1 relative p-3 bg-slate-100">
+        <div className="flex-1 relative p-0 md:p-3 bg-slate-100">
           {loading ? (
             <div className="w-full h-full flex items-center justify-center bg-white rounded-2xl">
               <Loading size="lg" message="Loading map…" />
