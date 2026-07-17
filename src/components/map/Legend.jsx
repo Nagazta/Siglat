@@ -46,26 +46,25 @@ const LEGEND_ITEMS = [
 export default function Legend() {
   return (
     <div
-      className="absolute bottom-6 right-3 z-[1000] backdrop-blur-md rounded-xl px-3 py-3"
+      className="absolute bottom-10 right-3 md:bottom-6 z-[1000] backdrop-blur-md rounded-xl px-2.5 py-2 md:p-3 max-w-[calc(100vw-24px)]"
       style={{
         background: "rgba(11,15,20,0.88)",
         border: "1px solid rgba(255,255,255,0.08)",
         boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
-        minWidth: "110px",
       }}
     >
       <p
-        className="text-[9px] font-bold uppercase tracking-widest mb-2.5 font-mono"
+        className="hidden md:block text-[9px] font-bold uppercase tracking-widest mb-2.5 font-mono"
         style={{ color: "rgba(248,250,252,0.3)" }}
       >
         Legend
       </p>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-row md:flex-col gap-2.5 md:gap-2 flex-wrap items-center justify-start">
         {LEGEND_ITEMS.map(({ Icon, color, label, dotGlow }) => (
-          <div key={label} className="flex items-center gap-2">
+          <div key={label} className="flex items-center gap-1.5 md:gap-2">
             {/* Signal icon with subtle glow ring */}
             <span
-              className="flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center"
+              className="flex-shrink-0 w-4 h-4 md:w-5 md:h-5 rounded-md flex items-center justify-center"
               style={{
                 background: `${color}18`,
                 border: `1px solid ${color}35`,
@@ -73,7 +72,7 @@ export default function Legend() {
             >
               <Icon color={color} />
             </span>
-            <span className="text-xs font-medium" style={{ color: "rgba(248,250,252,0.75)" }}>
+            <span className="text-[10px] md:text-xs font-medium" style={{ color: "rgba(248,250,252,0.75)" }}>
               {label}
             </span>
           </div>
