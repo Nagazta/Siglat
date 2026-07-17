@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Zap, Plus, Filter, ArrowUpDown, CheckCircle2,
-  Search, ChevronLeft, ChevronRight, X,
+  Search, ChevronLeft, ChevronRight, X, Lock, LogOut, Check, Trash2, Key
 } from "lucide-react";
 import Modal from "../../components/common/Modal";
 import Loading from "../../components/common/Loading";
@@ -9,6 +9,9 @@ import ReportCard from "../../components/reports/ReportCard";
 import ReportForm from "../../components/reports/ReportForm";
 import { useReports } from "../../hooks/useReports";
 import SyncPanel from "../../components/reports/SyncPanel";
+import { auth, db } from "../../services/firebase/config";
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 
 const PAGE_SIZE = 6;
 
@@ -20,21 +23,98 @@ const SORT_OPTIONS = [
 ];
 
 export default function Reports() {
-  const { reports, loading, addReport, updateReport } = useReports();
+  const { reports, loading, addReport, updateReport, removeReport } = useReports();
 
   const [statusFilter, setStatusFilter] = useState("All");
   const [sortBy,        setSortBy]       = useState("newest");
-  const [searchQuery,   setSearchQuery]  = useState("");
+  const [searchQuery,   searchQuerySet]  = useState("");
   const [locationFilter, setLocationFilter] = useState("All");
   const [page,          setPage]         = useState(1);
   const [formOpen,      setFormOpen]     = useState(false);
   const [successReport, setSuccessReport] = useState(null);
 
+  // Admin state
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [adminUser, setAdminUser] = useState(null);
+
+  // Login form state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  // Listen to Auth changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setAdminUser(u);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError("");
+    setLoginLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      console.error("Login failed:", err);
+      setLoginError("Invalid credentials. Please verify admin email and password.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Sign out failed:", err);
+    }
+  };
+
+  const handleApprove = async (reportId, reportedStatus) => {
+    try {
+      const docRef = doc(db, "reports", reportId);
+      await updateDoc(docRef, {
+        status: reportedStatus || "ongoing",
+        updatedAt: new Date().toISOString(),
+      });
+      updateReport(reportId, { status: reportedStatus || "ongoing" });
+    } catch (err) {
+      console.error("Failed to approve report:", err);
+      alert("Verification Failed: " + err.message);
+    }
+  };
+
+  const handleReject = async (reportId) => {
+    if (!confirm("Are you sure you want to reject and delete this report?")) return;
+    try {
+      const docRef = doc(db, "reports", reportId);
+      await deleteDoc(docRef);
+      removeReport(reportId);
+    } catch (err) {
+      console.error("Failed to delete report:", err);
+      alert("Rejection Failed: " + err.message);
+    }
+  };
+
+  // Wrapper function for compatibility
+  const setSearchQuery = (val) => {
+    searchQuerySet(val);
+  };
+
+  // Exclude pending reports from standard list
+  const activeReports = useMemo(() => reports.filter((r) => r.status !== "pending"), [reports]);
+  
+  // Pending reports list
+  const pendingReports = useMemo(() => reports.filter((r) => r.status === "pending"), [reports]);
+
   /* ── Unique location groups for the dropdown ── */
   const locationOptions = useMemo(() => {
     const seen = new Set();
     const opts = [{ value: "All", label: "All Locations" }];
-    reports.forEach((r) => {
+    activeReports.forEach((r) => {
       const key = `${r.municipality}, ${r.province}`;
       if (!seen.has(key)) {
         seen.add(key);
@@ -42,13 +122,13 @@ export default function Reports() {
       }
     });
     return opts;
-  }, [reports]);
+  }, [activeReports]);
 
   /* ── Full filter + sort pipeline ── */
   const processedReports = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
-    let list = reports.filter((r) => {
+    let list = activeReports.filter((r) => {
       // Status filter
       const statusOk =
         statusFilter === "All" || r.status === statusFilter.toLowerCase();
@@ -132,18 +212,31 @@ export default function Reports() {
                 Outage Reports
               </h1>
               <p className="text-spark-white/40 text-sm mt-1 font-mono">
-                {processedReports.length} of {reports.length}{" "}
-                {reports.length === 1 ? "report" : "reports"}
+                {processedReports.length} of {activeReports.length}{" "}
+                {activeReports.length === 1 ? "report" : "reports"}
               </p>
             </div>
-            <button
-              onClick={() => setFormOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-fault-red text-white
-                         text-sm font-semibold transition-all duration-150 hover:brightness-110 active:scale-95"
-            >
-              <Plus size={15} />
-              Report Outage
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAdminPanelOpen((v) => !v)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 active:scale-95 ${
+                  adminPanelOpen
+                    ? "bg-live-amber text-grid-ink hover:brightness-105"
+                    : "border border-white/10 text-spark-white/70 hover:text-spark-white hover:bg-white/5"
+                }`}
+              >
+                <Lock size={14} />
+                {adminPanelOpen ? "View Map Data" : "Admin Panel"}
+              </button>
+              <button
+                onClick={() => setFormOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-fault-red text-white
+                           text-sm font-semibold transition-all duration-150 hover:brightness-110 active:scale-95"
+              >
+                <Plus size={15} />
+                Report Outage
+              </button>
+            </div>
           </div>
 
           {/* ── Search Bar ── */}
@@ -254,11 +347,161 @@ export default function Reports() {
         </div>
       )}
 
-      {/* ── Report Grid ── */}
+      {/* ── Moderation Queue / Standard Grid ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <SyncPanel />
+        {adminPanelOpen ? (
+          /* Admin Moderation Queue */
+          !adminUser ? (
+            /* Log in Card */
+            <div className="max-w-md mx-auto bg-[#1E293B] border border-white/5 rounded-2xl p-6 shadow-xl mt-8">
+              <h2 className="text-lg font-bold text-spark-white flex items-center gap-2 mb-4">
+                <Lock size={18} className="text-live-amber" />
+                Administrator Access
+              </h2>
+              <p className="text-xs text-spark-white/60 mb-4 leading-relaxed">
+                Please enter your administrator credentials to access the pending reports moderation queue.
+              </p>
+              
+              <form onSubmit={handleLogin} className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-spark-white/60 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="admin@siglat.ph"
+                    required
+                    className="w-full px-3 py-2 bg-[#0B0F14]/40 border border-white/10 rounded-xl text-sm text-spark-white placeholder-spark-white/30 focus:outline-none focus:border-live-amber/60"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-spark-white/60 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full px-3 py-2 bg-[#0B0F14]/40 border border-white/10 rounded-xl text-sm text-spark-white placeholder-spark-white/30 focus:outline-none focus:border-live-amber/60"
+                  />
+                </div>
+                {loginError && (
+                  <p className="text-xs text-danger font-medium bg-danger/10 border border-danger/20 rounded-lg px-3 py-2">
+                    {loginError}
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={loginLoading}
+                  className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-live-amber text-grid-ink text-sm font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50"
+                  style={{ backgroundColor: "#FFB020", color: "#0B0F14" }}
+                >
+                  {loginLoading ? "Verifying..." : "Log In"}
+                </button>
+              </form>
+            </div>
+          ) : (
+            /* Moderation Dashboard */
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center justify-between p-4 bg-slate-800/40 border border-white/5 rounded-2xl">
+                <div>
+                  <p className="text-xs text-spark-white/60">Signed in as administrator:</p>
+                  <p className="text-sm font-bold text-spark-white">{adminUser.email}</p>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-white/10 text-spark-white/70 hover:text-white hover:bg-white/5 transition-all"
+                >
+                  <LogOut size={13} />
+                  Sign Out
+                </button>
+              </div>
 
-        {loading ? (
+              <div>
+                <h2 className="text-lg font-bold text-spark-white mb-2">Pending Community Reports</h2>
+                <p className="text-xs text-spark-white/60 mb-4 font-mono">
+                  Review and moderate outage reports submitted by the community. Approved reports appear instantly on the live map and public feed.
+                </p>
+
+                {pendingReports.length === 0 ? (
+                  <div className="text-center py-16 bg-[#1E293B]/30 border border-white/5 rounded-2xl">
+                    <CheckCircle2 size={32} className="mx-auto mb-2 text-emerald-400 opacity-60" />
+                    <p className="font-semibold text-spark-white">All caught up!</p>
+                    <p className="text-xs text-spark-white/50 mt-0.5 font-mono">No reports currently waiting for review.</p>
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {pendingReports.map((report) => (
+                      <div key={report.id} className="bg-[#1E293B] border border-white/5 rounded-2xl overflow-hidden shadow-md flex flex-col justify-between">
+                        {/* Header details */}
+                        <div className="p-4 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-700 text-slate-300">
+                              PENDING
+                            </span>
+                            {report.reportedStatus && (
+                              <span className="text-[10px] text-spark-white/50 font-mono">
+                                Requested: {report.reportedStatus.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 className="font-bold text-base text-spark-white leading-tight mt-1">
+                            {report.barangay}
+                          </h3>
+                          <p className="text-xs text-spark-white/60">
+                            {report.municipality}, {report.province}
+                          </p>
+
+                          {report.reason && (
+                            <p className="text-xs mt-1 text-spark-white/80 font-medium">
+                              Reason: <span className="font-normal text-spark-white/60">{report.reason}</span>
+                            </p>
+                          )}
+
+                          {report.notes && (
+                            <p className="text-xs bg-[#0B0F14]/40 p-2.5 rounded-lg border border-white/5 text-spark-white/60 italic leading-relaxed mt-2">
+                              "{report.notes}"
+                            </p>
+                          )}
+
+                          {report.photoUrl && (
+                            <div className="mt-2 rounded-lg overflow-hidden border border-white/5 max-h-36">
+                              <img src={report.photoUrl} alt="Attached outage proof" className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Moderation Controls */}
+                        <div className="p-3 bg-slate-800/30 border-t border-white/5 flex gap-2 mt-auto">
+                          <button
+                            onClick={() => handleReject(report.id)}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border border-rose-500/30 text-rose-400 bg-rose-500/5 hover:bg-rose-500/10 transition-colors"
+                          >
+                            <Trash2 size={13} />
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => handleApprove(report.id, report.reportedStatus)}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-emerald-500 text-grid-ink hover:brightness-105 transition-colors"
+                            style={{ backgroundColor: "#10B981", color: "#0B0F14" }}
+                          >
+                            <Check size={13} />
+                            Approve
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        ) : (
+          <>
+            <SyncPanel />
+
+            {loading ? (
           <Loading size="page" message="Reading grid data..." />
         ) : processedReports.length === 0 ? (
           <div className="text-center py-20 text-muted">
@@ -373,6 +616,8 @@ export default function Reports() {
                 </div>
               </div>
             )}
+          </>
+        )}
           </>
         )}
       </div>

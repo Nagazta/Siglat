@@ -275,6 +275,8 @@ export default function ReportForm({ onSuccess, onCancel }) {
     try {
       const reportData = {
         ...form,
+        status: "pending",
+        reportedStatus: form.status,
         latitude: form.latitude ? parseFloat(form.latitude) : 14.5995,
         longitude: form.longitude ? parseFloat(form.longitude) : 120.9842,
         photoUrl: null,

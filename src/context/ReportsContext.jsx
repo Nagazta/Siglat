@@ -11,6 +11,9 @@ export const ReportsContext = createContext(null);
  */
 function processReport(r) {
   let status = r.status;
+  if (status === "pending") {
+    return r;
+  }
   if (r.estimatedEnd) {
     const end = new Date(r.estimatedEnd);
     const now = new Date();
