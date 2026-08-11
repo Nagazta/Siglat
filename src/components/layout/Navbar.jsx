@@ -35,7 +35,7 @@ export default function Navbar() {
     <>
     <header
       className={clsx(
-        "sticky top-0 z-40 bg-grid-ink/95 backdrop-blur-md border-b transition-all duration-150",
+        "sticky top-0 z-[2000] bg-grid-ink/95 backdrop-blur-md border-b transition-all duration-150",
         scrolled
           ? "border-live-amber/30 shadow-[0_1px_0_rgba(255,176,32,0.15)]"
           : "border-white/5"

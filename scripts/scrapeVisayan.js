@@ -362,8 +362,8 @@ async function scrapeVisayanElectric() {
       let dupes = 0;
 
       for (const report of allReports) {
-        // Check for duplicates by Barangay and Municipality in database
-        const q = query(reportsCollection, where("barangay", "==", report.barangay), where("municipality", "==", report.municipality));
+        // Check for duplicates by Barangay, Municipality, AND startTime so each unique scheduled interruption gets its own record
+        const q = query(reportsCollection, where("barangay", "==", report.barangay), where("municipality", "==", report.municipality), where("startTime", "==", report.startTime));
         const existingDocs = await getDocs(q);
         
         if (existingDocs.empty) {

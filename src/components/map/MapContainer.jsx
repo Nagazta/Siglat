@@ -93,7 +93,7 @@ export default function MapContainer({
   }, [reports]);
 
   return (
-    <div className={`relative w-full h-full rounded-2xl overflow-hidden ${className}`}>
+    <div className={`relative w-full h-full rounded-none md:rounded-2xl overflow-hidden ${className}`}>
       <LeafletMap
         center={[PHILIPPINES_CENTER.lat, PHILIPPINES_CENTER.lng]}
         zoom={PHILIPPINES_ZOOM}

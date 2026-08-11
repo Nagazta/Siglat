@@ -9,6 +9,26 @@ export const ReportsContext = createContext(null);
  * Uses Firestore's onSnapshot for real-time updates. Falls back
  * to mock data if Firestore is unconfigured or returns an error.
  */
+function processReport(r) {
+  let status = r.status;
+  if (status === "pending") {
+    return r;
+  }
+  if (r.estimatedEnd) {
+    const end = new Date(r.estimatedEnd);
+    const now = new Date();
+    if (!isNaN(end.getTime()) && end < now && status !== "restored") {
+      status = "restored";
+    }
+  }
+  return { ...r, status };
+}
+
+function processReports(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map(processReport);
+}
+
 export function ReportsProvider({ children }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,20 +43,20 @@ export function ReportsProvider({ children }) {
     try {
       unsubscribe = subscribeToReports(
         (updatedReports) => {
-          setReports(updatedReports);
+          setReports(processReports(updatedReports));
           setLoading(false);
           setIsUsingFallback(false);
         },
         (err) => {
           console.warn("Firestore connection failed; falling back to local mock data:", err);
-          setReports(MOCK_REPORTS);
+          setReports(processReports(MOCK_REPORTS));
           setIsUsingFallback(true);
           setLoading(false);
         }
       );
     } catch (err) {
       console.warn("Firestore subscription failed; falling back to local mock data:", err);
-      setReports(MOCK_REPORTS);
+      setReports(processReports(MOCK_REPORTS));
       setIsUsingFallback(true);
       setLoading(false);
     }
@@ -48,13 +68,13 @@ export function ReportsProvider({ children }) {
 
   // Optimistic local add
   const addReport = useCallback((report) => {
-    setReports((prev) => [report, ...prev]);
+    setReports((prev) => [processReport(report), ...prev]);
   }, []);
 
   // Optimistic local update
   const updateReport = useCallback((id, updates) => {
     setReports((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
+      prev.map((r) => (r.id === id ? processReport({ ...r, ...updates }) : r))
     );
   }, []);
 
