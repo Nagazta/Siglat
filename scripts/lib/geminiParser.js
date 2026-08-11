@@ -48,7 +48,7 @@ export async function parseAdvisoryWithGemini(rawText, sourceUrl) {
       console.log(`[Gemini] Parsing advisory from ${sourceUrl} (attempt ${attempt})...`);
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-3.5-flash",
         contents: prompt,
       });
 
