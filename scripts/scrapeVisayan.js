@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, updateDoc, getDocs, query, where } from "firebase/firestore";
 import dotenv from "dotenv";
 import { notifyNearbySubscribers } from "./lib/httpSmsService.js";
+import { parseAdvisoryWithGemini } from "./lib/geminiParser.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -203,75 +204,43 @@ async function scrapeVisayanElectric() {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
       await page.waitForTimeout(3000);
 
-      const parsedAdvisories = await page.evaluate(() => {
-        const postContainer = document.querySelector("[data-testid='post-content'], article, [class*='post-content']");
-        if (!postContainer) return [];
-        
-        const children = Array.from(postContainer.querySelectorAll("*"));
-        const entries = [];
-        let currentDate = "";
-        
-        const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-        
-        children.forEach(el => {
-          if (!el) return;
-          const text = (el.innerText || "").trim();
-          const tagName = el.tagName || "";
-          if (!tagName) return;
-          
-          const isDate = (tagName.startsWith("H") || tagName === "P" || tagName === "SPAN") && 
-                         months.some(m => text.toLowerCase().startsWith(m)) && 
-                         text.includes("202") &&
-                         text.length < 50;
-                         
-          if (isDate) {
-            currentDate = text;
-          }
-          
-          if (tagName === "TABLE") {
-            const rows = Array.from(el.querySelectorAll("tr"));
-            const entry = {
-              date: currentDate,
-              time: "",
-              purpose: "",
-              areas: "",
-              mapImageUrl: ""
-            };
-            
-            rows.forEach(row => {
-              const cells = Array.from(row.querySelectorAll("td"));
-              if (cells.length >= 2) {
-                const label = cells[0].innerText.trim().toLowerCase();
-                const valueCell = cells[1];
-                const valueText = valueCell.innerText.trim();
-                
-                if (label.includes("time")) {
-                  entry.time = valueText;
-                } else if (label.includes("purpose")) {
-                  entry.purpose = valueText;
-                } else if (label.includes("areas")) {
-                  entry.areas = valueText;
-                } else if (label.includes("map")) {
-                  const img = valueCell.querySelector("img");
-                  if (img) {
-                    let src = img.src || img.getAttribute("data-src") || img.getAttribute("src") || "";
-                    if (src.includes("wixstatic.com/media/")) {
-                      src = src.split("/v1/fill/")[0];
-                    }
-                    entry.mapImageUrl = src;
-                  }
-                }
-              }
-            });
-            
-            if (entry.time || entry.purpose || entry.areas) {
-              entries.push(entry);
-            }
+      // ── AI-powered extraction ───────────────────────────────────────────────
+      // Extract the raw text content of the post for Gemini to parse.
+      // Also separately grab any map image URLs so we can attach them later.
+      const { rawText, mapImages } = await page.evaluate(() => {
+        const container = document.querySelector(
+          "[data-testid='post-content'], article, [class*='post-content']"
+        );
+        const rawText = container ? (container.innerText || "") : document.body.innerText;
+
+        // Collect map image URLs from the page
+        const mapImages = [];
+        const imgs = Array.from(document.querySelectorAll("img"));
+        imgs.forEach((img) => {
+          let src = img.src || img.getAttribute("data-src") || "";
+          if (src.includes("wixstatic.com/media/")) {
+            src = src.split("/v1/fill/")[0]; // strip Wix resize params
+            mapImages.push(src);
           }
         });
-        
-        return entries;
+
+        return { rawText, mapImages };
       });
+
+      // Send raw text to Gemini — it reads the whole post like a human would.
+      const geminiEntries = await parseAdvisoryWithGemini(rawText, url);
+
+      // Map Gemini output to the parsedAdvisories shape the rest of the
+      // pipeline already expects: { date, time, purpose, areas, mapImageUrl }
+      const parsedAdvisories = geminiEntries.map((entry, i) => ({
+        date:        entry.date        || "",
+        time:        entry.time        || "",
+        purpose:     entry.purpose     || "",
+        areas:       entry.areas       || "",
+        municipality: entry.municipality || "",
+        mapImageUrl: mapImages[i] || "", // best-effort: attach image by index
+      }));
+
 
       console.log(`📄 Found ${parsedAdvisories.length} structured tables. Parsing into database reports...`);
       
@@ -280,12 +249,17 @@ async function scrapeVisayanElectric() {
         const areasLower = seg.areas.toLowerCase();
         const purposeLower = seg.purpose.toLowerCase();
         
-        // Resolve municipality
-        let municipality = "Cebu City"; // fallback
-        for (const city of Object.keys(CEBU_COORDINATES)) {
-          if (areasLower.includes(city) || purposeLower.includes(city)) {
-            municipality = city.replace(/(^|\s)\S/g, (l) => l.toUpperCase());
-            break;
+        // Resolve municipality — prefer Gemini's extraction, fall back to keyword scan
+        let municipality = seg.municipality && seg.municipality.trim()
+          ? seg.municipality.trim()
+          : "Cebu City"; // keyword-scan fallback
+
+        if (!seg.municipality || !seg.municipality.trim()) {
+          for (const city of Object.keys(CEBU_COORDINATES)) {
+            if (areasLower.includes(city) || purposeLower.includes(city)) {
+              municipality = city.replace(/(^|\s)\S/g, (l) => l.toUpperCase());
+              break;
+            }
           }
         }
         
