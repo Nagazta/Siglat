@@ -15,6 +15,7 @@
     "scrape": "node scripts/scrapeFacebook.js && node scripts/scrapeVisayan.js"
   },
   "dependencies": {
+    "@google/genai": "^2.16.0",
     "clsx": "^2.1.1",
     "firebase": "^12.15.0",
     "leaflet": "^1.9.4",

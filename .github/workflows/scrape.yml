@@ -38,6 +38,7 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
           HTTPSMS_SENDER: ${{ secrets.HTTPSMS_SENDER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node scripts/scrapeFacebook.js
 
       - name: Run Visayan Electric Scraper
@@ -50,4 +51,5 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           HTTPSMS_API_KEY: ${{ secrets.HTTPSMS_API_KEY }}
           HTTPSMS_SENDER: ${{ secrets.HTTPSMS_SENDER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node scripts/scrapeVisayan.js
